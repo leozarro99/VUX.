@@ -41,8 +41,7 @@ const ConfirmationModal = ({ message, onConfirm, onCancel }) => {
 export default function App() {
     // Estados para gerir os dados da aplicação
     const [supabase, setSupabase] = useState(null); // Cliente Supabase
-    const [userId, setUserId] = useState(null); // ID do utilizador (agora gerido localmente)
-    const [isAuthReady, setIsAuthReady] = useState(false); // Estado de prontidão da autenticação
+    const [userId, setUserId] = useState(null); // ID do utilizador (agora gerido pelo Supabase Auth)
     const [receitas, setReceitas] = useState([]); // Array para receitas
     const [despesas, setDespesas] = useState([]); // Array para despesas
     const [isLoading, setIsLoading] = useState(true); // Estado de carregamento
@@ -64,7 +63,7 @@ export default function App() {
         setError(`${message}: ${err.message || err.toString()}`);
     };
 
-    // Inicialização do Supabase e gestão do ID do utilizador
+    // Inicialização do Supabase e autenticação do utilizador
     useEffect(() => {
         try {
             // Inicializa o cliente Supabase com os valores fornecidos
@@ -74,17 +73,21 @@ export default function App() {
             const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
             setSupabase(supabaseClient);
 
-            // Gerir o ID do utilizador usando o localStorage. Isto permite
-            // que os dados permaneçam no mesmo navegador para sessões futuras.
-            let localUserId = localStorage.getItem('supabase-user-id');
-            if (!localUserId) {
-                localUserId = crypto.randomUUID();
-                localStorage.setItem('supabase-user-id', localUserId);
-            }
-            setUserId(localUserId);
-            setIsAuthReady(true);
+            // Tenta iniciar sessão anonimamente para obter um ID de utilizador
+            const signInAnon = async () => {
+                const { data, error } = await supabaseClient.auth.signInAnonymously();
+                if (error) {
+                    handleError(error, 'Erro ao iniciar sessão anonimamente');
+                } else if (data.user) {
+                    setUserId(data.user.id);
+                } else {
+                    handleError(null, 'Não foi possível obter o ID do utilizador após o início de sessão');
+                }
+            };
+            signInAnon();
+
         } catch (err) {
-            handleError(err, 'Erro ao inicializar Supabase ou ao obter ID do utilizador');
+            handleError(err, 'Erro ao inicializar Supabase');
             setIsLoading(false);
         }
     }, []);
@@ -92,15 +95,16 @@ export default function App() {
     // Hook para carregar dados do Supabase e subscrever a atualizações em tempo real
     useEffect(() => {
         // Assegura que Supabase e o userId estão prontos antes de continuar
-        if (!isAuthReady || !supabase || !userId) {
+        if (!supabase || !userId) {
             return;
         }
 
         // ATENÇÃO: Certifique-se de que estas tabelas existem no seu projeto Supabase.
         // Crie tabelas 'receitas' e 'despesas' com as colunas 'id', 'descricao', 'valor', 'created_at' e 'user_id'.
         // É CRUCIAL configurar as políticas de RLS para que um utilizador anónimo possa:
-        // - Inserir (`INSERT`) dados com o `user_id` da sessão.
+        // - Inserir (`INSERT`) dados com o seu `user_id`.
         // - Selecionar (`SELECT`), Atualizar (`UPDATE`) e Excluir (`DELETE`) dados onde `user_id` corresponde ao seu.
+        // A política de RLS para todas estas operações deve ser: `user_id = auth.uid()`
 
         let receitasSubscription;
         let despesasSubscription;
@@ -171,7 +175,7 @@ export default function App() {
             if (despesasSubscription) supabase.removeChannel(despesasSubscription);
         };
 
-    }, [isAuthReady, supabase, userId]);
+    }, [supabase, userId]);
 
     // Calcula o saldo total
     const saldo = receitas.reduce((sum, r) => sum + (r.valor || 0), 0) - despesas.reduce((sum, d) => sum + (d.valor || 0), 0);
