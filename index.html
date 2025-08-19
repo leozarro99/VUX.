@@ -8,12 +8,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f2f5;
-            overflow-x: hidden; /* Evita rolagem horizontal indesejada */
         }
         .vux-logo {
             background-color: #4b3e34;
@@ -43,8 +43,6 @@
             transition: all 0.5s ease-in-out;
             opacity: 0;
             visibility: hidden;
-            max-width: 90%;
-            text-align: center;
         }
         .message-box.show {
             opacity: 1;
@@ -62,102 +60,54 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .tab-content {
-            display: none;
-            animation: fadeIn 0.5s ease-in-out;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .calendar-day.active {
-            background-color: #4b3e34 !important;
-            color: white;
-        }
     </style>
 </head>
-<body class="bg-[#f0f2f5]">
+<body class="flex items-center justify-center min-h-screen p-4">
 
-    <!-- Mensagem de notificação flutuante -->
     <div id="message-box" class="message-box"></div>
 
-    <!-- Layout principal da aplicação -->
-    <div class="flex min-h-screen">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-4xl">
 
-        <!-- Sidebar de navegação -->
-        <nav id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white p-6 transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-auto hidden">
-            <div class="flex items-center justify-between mb-8">
-                <div class="flex items-center space-x-2">
-                    <div class="vux-logo h-12 w-12 rounded-full text-lg shadow-md"> VUX. </div>
-                    <span class="text-xl font-bold">VUX Control</span>
+        <div id="auth-view" class="space-y-6">
+            <div class="flex flex-col items-center">
+                <div class="vux-logo h-24 w-24 rounded-full mb-6 text-3xl shadow-md">
+                    VUX.
                 </div>
-                <button id="close-menu-btn" class="text-gray-400 hover:text-white lg:hidden">
-                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
+                <h2 class="text-4xl font-bold text-gray-900 text-center"></h2>
+                <p class="text-gray-500 text-center mt-2"></p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">Utilizador</label>
+                    <input type="text" id="username" value="Admin" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="password" value="1234" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base">
+                </div>
+                <div class="text-center text-red-500 font-medium" id="auth-error-message"></div>
+                <button id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-semibold text-white bg-[#4b3e34] hover:bg-[#5b4d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4b3e34] transition duration-300 ease-in-out transform hover:scale-105">
+                    Entrar
                 </button>
             </div>
-            
-            <ul class="space-y-4 text-sm font-medium">
-                <li><button class="sidebar-btn active w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="dashboard-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-9v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg><span>Dashboard</span></button></li>
-                <li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="gastos-entradas-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg><span>Finanças</span></button></li>
-                <li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="servicos-planos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2m-2 4h-4m2 0a2 2 0 002-2V9a2 2 0 00-2-2"></path></svg><span>Catálogo</span></button></li>
-                <li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="cadastro-servicos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg><span>Cadastrar</span></button></li>
-                <li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="agenda-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span>Agenda</span></button></li>
-                <li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="controle-servicos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6a2 2 0 00-2-2H5a2 2 0 00-2 2v13a2 2 0 002 2h4zm-5 0h16a1 1 0 001-1v-8a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1zM9 19a1 1 0 01-1-1v-8a1 1 0 011-1h6a1 1 0 011 1v8a1 1 0 01-1 1H9z"></path></svg><span>Controle</span></button></li>
-            </ul>
-        </nav>
+        </div>
 
-        <!-- Conteúdo principal -->
-        <main class="flex-1 p-6 lg:p-10">
-            <!-- Header para mobile -->
-            <header class="flex justify-between items-center mb-8 lg:hidden">
-                <button id="menu-btn" class="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition duration-300 hidden">
+        <div id="dashboard-view" class="hidden">
+            <header class="flex justify-between items-center mb-8">
+                <button id="menu-btn" class="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition duration-300">
                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
                     </svg>
                 </button>
-                <h1 class="text-2xl font-bold text-gray-900">VUX Control</h1>
-                <button id="logout-btn-mobile" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300 hidden">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold text-gray-900 hidden sm:block">VUX Control</h1>
+                </div>
+                <button id="logout-btn" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
                     Sair
                 </button>
             </header>
-
-            <!-- Autenticação (visível por padrão) -->
-            <div id="auth-view" class="flex items-center justify-center min-h-screen">
-                <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md">
-                    <div class="flex flex-col items-center">
-                        <div class="vux-logo h-24 w-24 rounded-full mb-6 text-3xl shadow-md">
-                            VUX.
-                        </div>
-                    </div>
-                    <div class="space-y-4 mt-6">
-                        <div>
-                            <label for="username" class="block text-sm font-medium text-gray-700">Utilizador</label>
-                            <input type="text" id="username" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="Admin">
-                        </div>
-                        <div>
-                            <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
-                            <input type="password" id="password" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="1234">
-                        </div>
-                        <div class="text-center text-red-500 font-medium" id="auth-error-message"></div>
-                        <button id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-semibold text-white bg-[#4b3e34] hover:bg-[#5b4d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4b3e34] transition duration-300 ease-in-out transform hover:scale-105">
-                            Entrar
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard View -->
-            <div id="dashboard-view" class="tab-content hidden">
-                 <div class="flex justify-end items-center mb-8 hidden lg:flex">
-                     <button id="logout-btn-desktop" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                        Sair
-                    </button>
-                 </div>
+            
+            <div id="content-dashboard" class="tab-content">
                  <!-- Seletor de Período -->
                 <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
                     <h3 class="text-xl font-semibold text-gray-900 mb-4">Filtrar por Período</h3>
@@ -212,17 +162,12 @@
                         <span class="ml-2 text-gray-500">A carregar dados...</span>
                     </div>
                     <div id="recent-transactions-list" class="space-y-4">
+                        <!-- Lançamentos recentes serão injetados aqui -->
                     </div>
                 </div>
             </div>
 
-            <!-- Gastos e Entradas View -->
-            <div id="gastos-entradas-view" class="tab-content hidden">
-                 <div class="flex justify-end items-center mb-8 hidden lg:flex">
-                     <button id="logout-btn-desktop-2" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                        Sair
-                    </button>
-                 </div>
+            <div id="content-gastos-entradas" class="tab-content hidden">
                 <div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-2xl font-bold text-gray-900">Resumo Geral</h3>
@@ -280,13 +225,7 @@
                 </div>
             </div>
 
-            <!-- Serviços e Planos View -->
-            <div id="servicos-planos-view" class="tab-content hidden">
-                <div class="flex justify-end items-center mb-8 hidden lg:flex">
-                     <button id="logout-btn-desktop-3" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                        Sair
-                    </button>
-                 </div>
+            <div id="content-servicos-planos" class="tab-content hidden">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
                     <h3 class="text-2xl font-bold text-gray-900 mb-6">Catálogo de Serviços e Planos</h3>
                     <div class="flex items-center justify-center py-4 hidden" id="loading-services-container">
@@ -298,13 +237,7 @@
                 </div>
             </div>
 
-            <!-- Cadastro de Serviços View -->
-            <div id="cadastro-servicos-view" class="tab-content hidden">
-                <div class="flex justify-end items-center mb-8 hidden lg:flex">
-                     <button id="logout-btn-desktop-4" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                        Sair
-                    </button>
-                 </div>
+            <div id="content-cadastro-servicos" class="tab-content hidden">
                 <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-yellow-400">
                     <h3 class="text-2xl font-bold text-gray-900 mb-6">Cadastro de Novo Serviço/Plano</h3>
                     <div class="space-y-4">
@@ -316,6 +249,7 @@
                             <label for="service-description" class="block text-sm font-medium text-gray-700">Descrição</label>
                             <textarea id="service-description" rows="3" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500"></textarea>
                         </div>
+                         <!-- Adicionada a lista suspensa para o tipo de serviço -->
                         <div>
                             <label for="service-type" class="block text-sm font-medium text-gray-700">Tipo de Serviço</label>
                             <select id="service-type" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
@@ -331,66 +265,51 @@
                             <input type="number" id="service-price" step="0.01" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
                         </div>
                         <button id="add-service-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-300">
-                            Cadastrar Serviço
-                        </button>
+                                Cadastrar Serviço
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Agenda View -->
-            <div id="agenda-view" class="tab-content hidden">
-                <div class="flex justify-end items-center mb-8 hidden lg:flex">
-                     <button id="logout-btn-desktop-5" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                        Sair
-                    </button>
-                 </div>
+            <div id="content-agenda" class="tab-content hidden">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
                     <h3 class="text-2xl font-bold text-gray-900 mb-6">Agenda de Compromissos</h3>
-                    <div class="flex items-center justify-center mb-4 space-x-4">
-                        <button id="prev-month-btn" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-                        <h4 class="text-lg font-bold text-center" id="current-month-year"></h4>
-                        <button id="next-month-btn" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
-                    </div>
-                    <div class="grid grid-cols-7 text-center font-semibold text-sm text-gray-600 mb-2">
-                        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-                    </div>
-                    <div id="calendar-days" class="grid grid-cols-7 gap-1">
-                    </div>
-                    <div id="events-list" class="mt-6 space-y-4">
-                        <!-- Eventos do dia selecionado serão injetados aqui -->
-                        <p id="no-events-message" class="text-gray-500 text-center hidden">Nenhum evento para este dia.</p>
+                    <p class="text-center text-gray-500 mb-4">Funcionalidade da Agenda em desenvolvimento. Aqui você poderá visualizar seus compromissos por mês, semana ou dia.</p>
+                    <div id="calendar-view" class="bg-gray-100 p-4 rounded-lg shadow-inner">
+                        <h4 class="text-lg font-bold text-center mb-2" id="current-month-year"></h4>
+                        <div class="grid grid-cols-7 text-center font-semibold text-sm text-gray-600 mb-2">
+                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                        </div>
+                        <div id="calendar-days" class="grid grid-cols-7 gap-1">
+                        </div>
                     </div>
                     <button id="add-event-btn" class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Adicionar Evento</button>
-                </div>
-
-                <!-- Modal para adicionar evento -->
-                <div id="add-event-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-                    <div class="relative p-6 border w-full max-w-sm sm:max-w-md shadow-lg rounded-xl bg-white">
-                        <h3 class="text-xl font-bold mb-4">Adicionar Novo Evento</h3>
-                        <div class="space-y-4">
-                            <input type="text" id="event-title" placeholder="Título do Evento" class="w-full p-3 border rounded-lg">
-                            <input type="date" id="event-date" class="w-full p-3 border rounded-lg">
-                            <input type="time" id="event-time" class="w-full p-3 border rounded-lg">
-                            <input type="text" id="event-location" placeholder="Local" class="w-full p-3 border rounded-lg">
-                            <select id="event-service-type" class="w-full p-3 border rounded-lg">
-                                <option value="">-- Tipo de Serviço --</option>
-                            </select>
-                        </div>
-                        <div class="mt-6 flex justify-end space-x-2">
-                            <button id="save-event-btn" class="py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-300">Salvar</button>
-                            <button id="cancel-event-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
+                    <div id="add-event-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                        <div class="relative top-20 mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
+                            <h3 class="text-xl font-bold mb-4">Adicionar Novo Evento</h3>
+                            <div class="space-y-4">
+                                <input type="text" id="event-title" placeholder="Título do Evento" class="w-full p-3 border rounded-lg">
+                                <input type="date" id="event-date" class="w-full p-3 border rounded-lg">
+                                <input type="time" id="event-time" class="w-full p-3 border rounded-lg">
+                                <input type="text" id="event-location" placeholder="Local" class="w-full p-3 border rounded-lg">
+                                <select id="event-service-type" class="w-full p-3 border rounded-lg">
+                                    <option value="">Tipo de Serviço</option>
+                                    <option value="Plano Básico">Plano Básico</option>
+                                    <option value="Plano Intermediário">Plano Intermediário</option>
+                                    <option value="Plano Premium">Plano Premium</option>
+                                    <option value="Serviço Avulso">Serviço Avulso</option>
+                                </select>
+                            </div>
+                            <div class="mt-6 flex justify-end space-x-2">
+                                <button id="save-event-btn" class="py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-300">Salvar</button>
+                                <button id="cancel-event-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Controle de Serviços View -->
-            <div id="controle-servicos-view" class="tab-content hidden">
-                <div class="flex justify-end items-center mb-8 hidden lg:flex">
-                     <button id="logout-btn-desktop-6" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                        Sair
-                    </button>
-                 </div>
+            <div id="content-controle-servicos" class="tab-content hidden">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
                     <h3 class="text-2xl font-bold text-gray-900 mb-6">Controle de Status dos Serviços</h3>
                     <div class="flex items-center justify-center py-4 hidden" id="loading-service-control-container">
@@ -398,16 +317,17 @@
                         <span class="ml-2 text-gray-500">A carregar serviços...</span>
                     </div>
                     <div id="service-control-list" class="space-y-4">
+                        <!-- Lista de serviços dinâmicos será injetada aqui -->
                     </div>
                 </div>
             </div>
 
-            <!-- Modal para iniciar serviço (Job) -->
+             <!-- Novo Modal para Iniciar Serviço -->
             <div id="add-job-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
                 <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm">
                     <h3 class="text-2xl font-bold text-gray-900 mb-4">Iniciar Novo Serviço</h3>
                     <div class="space-y-4">
-                        <div id="job-modal-service-name" class="font-medium text-gray-700 text-lg"></div>
+                        <div id="job-modal-service-name" class="font-medium text-gray-700"></div>
                         <div>
                             <label for="job-description" class="block text-sm font-medium text-gray-700">Nome do Job/Cliente</label>
                             <input type="text" id="job-description" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
@@ -420,260 +340,275 @@
                 </div>
             </div>
 
-        </main>
+        </div>
+
+        <nav id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white p-6 transform -translate-x-full transition-transform duration-300 ease-in-out">
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center space-x-2">
+                    <div class="vux-logo h-12 w-12 rounded-full text-lg shadow-md">
+                        VUX.
+                    </div>
+                    <span class="text-xl font-bold text-gray-200">Menu</span>
+                </div>
+                <button id="close-menu-btn" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition duration-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <ul class="space-y-4">
+                <li>
+                    <button id="sidebar-dashboard" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3 active">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h4"></path>
+                        </svg>
+                        <span>Dashboard</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-gastos-entradas" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9v2m0 4v2m0-4h2m-2-2h-2m2 2h2m-2 2h-2m-2 2v2m0-4v2m0-4h2m-2 2h-2m2 2h2m-2 2h-2M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path>
+                        </svg>
+                        <span>Gastos e Entradas</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-servicos-planos" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0h2a2 2 0 012 2v8a2 2 0 01-2 2h-2m2-8V9m0-2a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h16a2 2 0 002-2v-2m-6 2l-8-4-8 4m16 0V7m0 2a2 2 0 002 2h-2m-2-2v2m-2-2v2"></path>
+                        </svg>
+                        <span>Serviços e Planos</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-cadastro-servicos" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        <span>Cadastro de Serviços</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-agenda" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h.01M9 11h.01M13 11h.01M15 11h.01M5 15h.01M17 15h.01M5 19h.01M17 19h.01M3 11h2c1.104 0 2-.896 2-2V7c0-1.104-.896-2-2-2H5c-1.104 0-2 .896-2 2v2c0 1.104.896 2 2 2zm16 0h2c1.104 0 2-.896 2-2V7c0-1.104-.896-2-2-2h-2c-1.104 0-2 .896-2 2v2c0 1.104.896 2 2 2zm-8-4a1 1 0 11-2 0 1 1 0 012 0z"></path>
+                        </svg>
+                        <span>Agenda</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-controle-servicos" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7l-2 2m0 0l-2-2m2 2V9"></path>
+                        </svg>
+                        <span>Controle de Serviços</span>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black opacity-0 transition-opacity duration-300 pointer-events-none z-40"></div>
     </div>
 
-    <!-- Script para o Firebase -->
-    <script type="module">
-        // Importações do Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script>
+        // Por favor, substitua estas variáveis pelas credenciais do seu projeto Supabase.
+        // O URL do seu projeto já está definido. Apenas precisa da sua chave de API.
+        const SUPABASE_URL = 'https://mpcjuzvbzoaonhjlclmg.supabase.co';
+        const SUPABASE_KEY = 'SUA_CHAVE_DE_API_AQUI';
 
-        // Variáveis globais do ambiente Canvas (não alterar)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Inicialização do Firebase
-        let app, db, auth, userId;
-
-        // Elementos da UI
+        let supabase;
+        try {
+            if (SUPABASE_KEY === 'SUA_CHAVE_DE_API_AQUI') {
+                console.warn('Usando chave de API de exemplo do Supabase. Por favor, substitua pela sua chave real.');
+            }
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } catch (error) {
+            console.error('Erro ao inicializar Supabase:', error.message);
+            const authView = document.getElementById('auth-view');
+            const authErrorMessage = document.getElementById('auth-error-message');
+            authView.classList.remove('hidden');
+            authErrorMessage.textContent = `Erro de inicialização: ${error.message}`;
+        }
+        
         const authView = document.getElementById('auth-view');
         const dashboardView = document.getElementById('dashboard-view');
-        const sidebar = document.getElementById('sidebar');
+        const authErrorMessage = document.getElementById('auth-error-message');
+        const dataList = document.getElementById('data-list');
+        const servicesList = document.getElementById('services-list');
+        const messageBox = document.getElementById('message-box');
+        const saldoTotal = document.getElementById('saldo-total');
+        const saldoTotalDashboard = document.getElementById('saldo-total-dashboard');
+        const totalReceitasDashboard = document.getElementById('total-receitas-dashboard');
+        const totalDespesasDashboard = document.getElementById('total-despesas-dashboard');
+        const recentTransactionsList = document.getElementById('recent-transactions-list');
+        const loadingContainer = document.getElementById('loading-container');
+        const loadingServicesContainer = document.getElementById('loading-services-container');
+        const loadingDashboardContainer = document.getElementById('loading-dashboard-container');
+        const loadingServiceControlContainer = document.getElementById('loading-service-control-container');
+        const serviceControlList = document.getElementById('service-control-list');
+        const balanceChartCanvas = document.getElementById('balanceChart');
+
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const exportBtn = document.getElementById('export-btn');
+
+        const receitaDescricaoInput = document.getElementById('receita-descricao');
+        const receitaValorInput = document.getElementById('receita-valor');
+        const addReceitaBtn = document.getElementById('add-receita-btn');
+
+        const despesaDescricaoInput = document.getElementById('despesa-descricao');
+        const despesaValorInput = document.getElementById('despesa-valor');
+        const addDespesaBtn = document.getElementById('add-despesa-btn');
+        
+        const serviceNameInput = document.getElementById('service-name');
+        const serviceDescriptionInput = document.getElementById('service-description');
+        const serviceTypeInput = document.getElementById('service-type');
+        const servicePriceInput = document.getElementById('service-price');
+        const addServiceBtn = document.getElementById('add-service-btn');
+
         const menuBtn = document.getElementById('menu-btn');
         const closeMenuBtn = document.getElementById('close-menu-btn');
-        const logoutBtns = document.querySelectorAll('[id^="logout-btn-"]');
-        const sidebarBtns = document.querySelectorAll('.sidebar-btn');
-        const messageBox = document.getElementById('message-box');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const sidebarButtons = document.querySelectorAll('.sidebar-btn');
         
-        // Módulos da aplicação
-        const authModule = {};
-        const dashboardModule = {};
-        const financeModule = {};
-        const servicesModule = {};
-        const calendarModule = {};
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const applyFilterBtn = document.getElementById('applyFilterBtn');
+        const clearFilterBtn = document.getElementById('clearFilterBtn');
 
-        // Funções utilitárias
-        function showMessage(message, isError = false) {
-            messageBox.textContent = message;
-            messageBox.classList.remove('bg-green-500', 'bg-red-500');
-            messageBox.classList.add(isError ? 'bg-red-500' : 'bg-green-500');
-            messageBox.classList.add('text-white', 'show');
+        // Novos elementos para o modal de iniciar serviço
+        const addJobModal = document.getElementById('add-job-modal');
+        const jobModalServiceName = document.getElementById('job-modal-service-name');
+        const jobDescriptionInput = document.getElementById('job-description');
+        const cancelJobBtn = document.getElementById('cancel-job-btn');
+        const saveJobBtn = document.getElementById('save-job-btn');
+
+        // Variável para armazenar o serviço selecionado para o novo job
+        let selectedServiceForJob = null;
+
+
+        const tabs = {
+            'sidebar-dashboard': document.getElementById('content-dashboard'),
+            'sidebar-gastos-entradas': document.getElementById('content-gastos-entradas'),
+            'sidebar-servicos-planos': document.getElementById('content-servicos-planos'),
+            'sidebar-cadastro-servicos': document.getElementById('content-cadastro-servicos'),
+            'sidebar-agenda': document.getElementById('content-agenda'),
+            'sidebar-controle-servicos': document.getElementById('content-controle-servicos')
+        };
+
+        const serviceStatusOptions = [
+            'Agendado',
+            'Em andamento',
+            'Enviado para o cliente',
+            'Aprovado pelo cliente',
+            'Concluído/Entregue',
+            'Cancelado'
+        ];
+
+        let balanceChartInstance = null;
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('-translate-x-full');
+            sidebarOverlay.classList.toggle('opacity-0');
+            sidebarOverlay.classList.toggle('pointer-events-none');
+        }
+
+        menuBtn.addEventListener('click', toggleSidebar);
+        closeMenuBtn.addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', toggleSidebar);
+
+        sidebarButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sidebarButtons.forEach(b => b.classList.remove('active'));
+                Object.values(tabs).forEach(content => content.classList.add('hidden'));
+
+                btn.classList.add('active');
+                tabs[btn.id].classList.remove('hidden');
+                toggleSidebar();
+
+                if (btn.id === 'sidebar-dashboard') {
+                    showDashboard();
+                } else if (btn.id === 'sidebar-gastos-entradas') {
+                    fetchData();
+                } else if (btn.id === 'sidebar-servicos-planos') {
+                    fetchServices();
+                } else if (btn.id === 'sidebar-controle-servicos') {
+                    fetchServiceJobs();
+                }
+            });
+        });
+
+        function showView(isLoggedIn) {
+            if (isLoggedIn) {
+                authView.classList.add('hidden');
+                dashboardView.classList.remove('hidden');
+                if (supabase) {
+                    showDashboard();
+                } else {
+                    showMessage('Erro: As chaves do Supabase não foram configuradas.', true);
+                }
+                renderCalendar();
+            } else {
+                authView.classList.remove('hidden');
+                dashboardView.classList.add('hidden');
+            }
+        }
+
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.style.backgroundColor = isError ? '#fee2e2' : '#d1fae5';
+            messageBox.style.color = isError ? '#991b1b' : '#065f46';
+            messageBox.classList.add('show');
             setTimeout(() => {
                 messageBox.classList.remove('show');
             }, 3000);
         }
 
-        function toggleLoader(containerId, show) {
-            const loaderContainer = document.getElementById(containerId);
-            if (loaderContainer) {
-                if (show) {
-                    loaderContainer.classList.remove('hidden');
+        loginBtn.addEventListener('click', () => {
+            const user = usernameInput.value;
+            const pass = passwordInput.value;
+            if (user === 'Admin' && pass === '1234') {
+                showView(true);
+                if (supabase) {
+                    showDashboard();
                 } else {
-                    loaderContainer.classList.add('hidden');
+                    showMessage('Erro: As chaves do Supabase não foram configuradas.', true);
                 }
-            }
-        }
-
-        function formatCurrency(value) {
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-        }
-
-        // --- Módulo de Autenticação ---
-        authModule.setup = () => {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    authView.classList.add('hidden');
-                    dashboardView.classList.add('active');
-                    dashboardView.classList.remove('hidden');
-                    sidebar.classList.remove('hidden');
-                    menuBtn.classList.remove('hidden'); // Mostra o menu hambúrguer
-                    document.getElementById('logout-btn-mobile').classList.remove('hidden');
-                    showMessage(`Bem-vindo, ${user.displayName || 'Usuário'}!`);
-                    
-                    // Inicia a escuta de todos os módulos
-                    dashboardModule.init();
-                    financeModule.init();
-                    servicesModule.init();
-                    calendarModule.init();
-
-                } else {
-                    userId = null;
-                    authView.classList.remove('hidden');
-                    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
-                    sidebar.classList.add('hidden');
-                    menuBtn.classList.add('hidden'); // Esconde o menu hambúrguer
-                    document.getElementById('logout-btn-mobile').classList.add('hidden');
-                }
-            });
-        };
-
-        authModule.handleLogin = async () => {
-            const usernameInput = document.getElementById('username').value;
-            const passwordInput = document.getElementById('password').value;
-            const errorMessage = document.getElementById('auth-error-message');
-            
-            errorMessage.textContent = '';
-            
-            // Simulação de login, no mundo real, você usaria Firebase Auth com email/senha
-            if (usernameInput === "Admin" && passwordInput === "1234") {
-                try {
-                    // Autenticação com token personalizado (requer backend) ou anônima
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (error) {
-                    console.error("Erro de autenticação:", error);
-                    errorMessage.textContent = 'Falha na autenticação. Tente novamente.';
-                }
+                renderCalendar();
             } else {
-                errorMessage.textContent = 'Usuário ou senha inválidos.';
+                authErrorMessage.textContent = 'Utilizador ou senha inválidos.';
             }
-        };
+        });
 
-        authModule.handleLogout = async () => {
-            try {
-                await signOut(auth);
-                showMessage('Sessão encerrada com sucesso.', false);
-                // Limpa os dados em tela após o logout
-                document.getElementById('recent-transactions-list').innerHTML = '';
-                document.getElementById('data-list').innerHTML = '';
-                document.getElementById('services-list').innerHTML = '';
-                document.getElementById('service-control-list').innerHTML = '';
-                document.getElementById('events-list').innerHTML = '';
-                document.getElementById('saldo-total-dashboard').textContent = 'A carregar...';
-                document.getElementById('total-receitas-dashboard').textContent = 'R$ 0.00';
-                document.getElementById('total-despesas-dashboard').textContent = 'R$ 0.00';
-                document.getElementById('saldo-total').textContent = 'A carregar...';
+        logoutBtn.addEventListener('click', () => {
+            showView(false);
+            showMessage('Você saiu com sucesso!', false);
+        });
 
-            } catch (error) {
-                console.error("Erro ao fazer logout:", error);
-                showMessage('Erro ao sair da conta. Tente novamente.', true);
+        function renderChart(totalReceitas, totalDespesas) {
+            if (balanceChartInstance) {
+                balanceChartInstance.destroy();
             }
-        };
-
-        // --- Módulo de Dashboard ---
-        dashboardModule.init = () => {
-            dashboardModule.fetchDashboardData();
-            document.getElementById('applyFilterBtn').addEventListener('click', dashboardModule.handleFilter);
-            document.getElementById('clearFilterBtn').addEventListener('click', dashboardModule.handleClearFilter);
-        };
-
-        dashboardModule.fetchDashboardData = (startDate = null, endDate = null) => {
-            if (!userId) return;
-            toggleLoader('loading-dashboard-container', true);
-            const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-            let q = query(transactionsRef);
-
-            if (startDate && endDate) {
-                const start = new Date(startDate);
-                const end = new Date(endDate);
-                end.setDate(end.getDate() + 1); // Inclui o dia final
-                q = query(transactionsRef, where('timestamp', '>=', start), where('timestamp', '<', end));
-            }
-
-            onSnapshot(q, (snapshot) => {
-                let totalReceitas = 0;
-                let totalDespesas = 0;
-                let transactions = [];
-
-                snapshot.docs.forEach(doc => {
-                    const data = doc.data();
-                    transactions.push(data);
-                    if (data.tipo === 'receita') {
-                        totalReceitas += data.valor;
-                    } else {
-                        totalDespesas += data.valor;
-                    }
-                });
-
-                const saldo = totalReceitas - totalDespesas;
-                document.getElementById('saldo-total-dashboard').textContent = formatCurrency(saldo);
-                document.getElementById('total-receitas-dashboard').textContent = formatCurrency(totalReceitas);
-                document.getElementById('total-despesas-dashboard').textContent = formatCurrency(totalDespesas);
-
-                // Exibir últimos 5 lançamentos
-                const recentTransactions = transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()).slice(0, 5);
-                dashboardModule.renderTransactions(recentTransactions);
-
-                // Atualiza o gráfico
-                dashboardModule.updateChart(transactions);
-                
-                toggleLoader('loading-dashboard-container', false);
-            }, (error) => {
-                console.error("Erro ao buscar dados do dashboard:", error);
-                showMessage('Erro ao carregar dados do dashboard.', true);
-                toggleLoader('loading-dashboard-container', false);
-            });
-        };
-
-        dashboardModule.renderTransactions = (transactions) => {
-            const list = document.getElementById('recent-transactions-list');
-            list.innerHTML = '';
-            if (transactions.length === 0) {
-                list.innerHTML = '<p class="text-gray-500 text-center">Nenhum lançamento encontrado.</p>';
-                return;
-            }
-
-            transactions.forEach(t => {
-                const transactionItem = document.createElement('div');
-                const isReceita = t.tipo === 'receita';
-                transactionItem.className = `p-4 rounded-xl flex justify-between items-center transition duration-300 transform hover:scale-105 ${isReceita ? 'bg-green-100 border-l-4 border-green-500' : 'bg-red-100 border-l-4 border-red-500'}`;
-                transactionItem.innerHTML = `
-                    <div>
-                        <p class="font-bold text-gray-800">${t.descricao}</p>
-                        <p class="text-sm text-gray-500">${new Date(t.timestamp.toDate()).toLocaleDateString()}</p>
-                    </div>
-                    <span class="font-bold text-lg ${isReceita ? 'text-green-600' : 'text-red-600'}">
-                        ${isReceita ? '+' : '-'} ${formatCurrency(t.valor)}
-                    </span>
-                `;
-                list.appendChild(transactionItem);
-            });
-        };
-
-        dashboardModule.updateChart = (transactions) => {
-            const ctx = document.getElementById('balanceChart').getContext('2d');
-            let balanceChart = Chart.getChart('balanceChart');
-            if (balanceChart) {
-                balanceChart.destroy();
-            }
-
-            const dates = Array.from(new Set(transactions.map(t => t.timestamp.toDate().toLocaleDateString()))).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
-            const cumulativeBalance = {};
-            let currentBalance = 0;
-
-            transactions.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()).forEach(t => {
-                if (t.tipo === 'receita') {
-                    currentBalance += t.valor;
-                } else {
-                    currentBalance -= t.valor;
-                }
-                cumulativeBalance[t.timestamp.toDate().toLocaleDateString()] = currentBalance;
-            });
-
-            const dataPoints = dates.map(date => cumulativeBalance[date] || 0);
-
-            balanceChart = new Chart(ctx, {
-                type: 'line',
+            const ctx = balanceChartCanvas.getContext('2d');
+            balanceChartInstance = new Chart(ctx, {
+                type: 'bar',
                 data: {
-                    labels: dates,
+                    labels: ['Entradas', 'Saídas'],
                     datasets: [{
-                        label: 'Saldo Acumulado (R$)',
-                        data: dataPoints,
-                        borderColor: '#4b3e34',
-                        backgroundColor: 'rgba(75, 62, 52, 0.1)',
-                        tension: 0.1,
-                        fill: true
+                        label: 'Valores Financeiros',
+                        data: [totalReceitas, totalDespesas],
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(255, 99, 132, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(255, 99, 132, 1)'
+                        ],
+                        borderWidth: 1
                     }]
                 },
                 options: {
@@ -683,204 +618,465 @@
                         y: {
                             beginAtZero: true
                         }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
                     }
                 }
             });
-        };
+        }
+        
+        async function fetchDashboardData(startDate, endDate) {
+            if (!supabase) return;
+            
+            recentTransactionsList.innerHTML = '';
+            loadingDashboardContainer.classList.remove('hidden');
+            saldoTotalDashboard.textContent = 'A carregar...';
+            totalReceitasDashboard.textContent = 'R$ 0.00';
+            totalDespesasDashboard.textContent = 'R$ 0.00';
 
-        dashboardModule.handleFilter = () => {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            if (!startDate || !endDate) {
-                showMessage('Por favor, selecione as duas datas.', true);
-                return;
-            }
-            if (new Date(startDate) > new Date(endDate)) {
-                showMessage('A Data Inicial não pode ser posterior à Data Final.', true);
-                return;
-            }
-            dashboardModule.fetchDashboardData(startDate, endDate);
-            showMessage('Filtro aplicado com sucesso!', false);
-        };
+            try {
+                let receitasQuery = supabase.from('receitas').select('created_at, descricao, valor');
+                let despesasQuery = supabase.from('despesas').select('created_at, descricao, valor');
 
-        dashboardModule.handleClearFilter = () => {
-            document.getElementById('startDate').value = '';
-            document.getElementById('endDate').value = '';
-            dashboardModule.fetchDashboardData();
-            showMessage('Filtro de período limpo.', false);
-        };
+                if (startDate && endDate) {
+                    const adjustedEndDate = new Date(endDate);
+                    adjustedEndDate.setDate(adjustedEndDate.getDate() + 1);
 
+                    receitasQuery = receitasQuery.gte('created_at', startDate).lt('created_at', adjustedEndDate.toISOString());
+                    despesasQuery = despesasQuery.gte('created_at', startDate).lt('created_at', adjustedEndDate.toISOString());
+                }
 
-        // --- Módulo de Finanças (Gastos e Entradas) ---
-        financeModule.init = () => {
-            financeModule.fetchFinanceData();
-            document.getElementById('add-receita-btn').addEventListener('click', financeModule.addReceita);
-            document.getElementById('add-despesa-btn').addEventListener('click', financeModule.addDespesa);
-            document.getElementById('export-btn').addEventListener('click', financeModule.exportToCSV);
-        };
+                const [receitasResult, despesasResult] = await Promise.all([
+                    receitasQuery,
+                    despesasQuery
+                ]);
 
-        financeModule.fetchFinanceData = () => {
-            if (!userId) return;
-            toggleLoader('loading-container', true);
-            const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-            const q = query(transactionsRef);
+                if (receitasResult.error) throw receitasResult.error;
+                if (despesasResult.error) throw despesasResult.error;
 
-            onSnapshot(q, (snapshot) => {
-                let totalReceitas = 0;
-                let totalDespesas = 0;
-                const transactions = [];
-                snapshot.docs.forEach(doc => {
-                    const data = doc.data();
-                    transactions.push({ ...data, id: doc.id });
-                    if (data.tipo === 'receita') {
-                        totalReceitas += data.valor;
-                    } else {
-                        totalDespesas += data.valor;
-                    }
-                });
+                const receitas = receitasResult.data;
+                const despesas = despesasResult.data;
 
+                const totalReceitas = receitas.reduce((sum, item) => sum + item.valor, 0);
+                const totalDespesas = despesas.reduce((sum, item) => sum + item.valor, 0);
                 const saldo = totalReceitas - totalDespesas;
-                document.getElementById('saldo-total').textContent = formatCurrency(saldo);
                 
-                financeModule.renderFinanceList(transactions);
-                toggleLoader('loading-container', false);
-            }, (error) => {
-                console.error("Erro ao buscar dados de finanças:", error);
-                showMessage('Erro ao carregar dados de finanças.', true);
-                toggleLoader('loading-container', false);
-            });
-        };
+                saldoTotalDashboard.textContent = `Saldo: R$ ${saldo.toFixed(2)}`;
+                saldoTotalDashboard.style.color = saldo >= 0 ? '#16a34a' : '#dc2626';
+                totalReceitasDashboard.textContent = `R$ ${totalReceitas.toFixed(2)}`;
+                totalDespesasDashboard.textContent = `R$ ${totalDespesas.toFixed(2)}`;
 
-        financeModule.renderFinanceList = (transactions) => {
-            const list = document.getElementById('data-list');
-            list.innerHTML = '';
-            if (transactions.length === 0) {
-                 list.innerHTML = '<p class="text-gray-500 text-center">Nenhum lançamento encontrado.</p>';
+                renderChart(totalReceitas, totalDespesas);
+
+                const allData = [...receitas.map(item => ({ ...item, tipo: 'receita' })), ...despesas.map(item => ({ ...item, tipo: 'despesa' }))]
+                               .filter(item => item.created_at)
+                               .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                if (allData.length === 0) {
+                    recentTransactionsList.innerHTML = '<p class="text-center text-gray-500">Nenhum lançamento encontrado para o período selecionado.</p>';
+                } else {
+                    recentTransactionsList.innerHTML = '';
+                    allData.slice(0, 5).forEach(item => {
+                        const isReceita = item.tipo === 'receita';
+                        const valorClass = isReceita ? 'text-green-600' : 'text-red-600';
+                        const valorTexto = isReceita ? `+ R$ ${item.valor.toFixed(2)}` : `- R$ ${item.valor.toFixed(2)}`;
+                        
+                        const iconSVG = isReceita ? 
+                            `<svg class="w-6 h-6 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>` : 
+                            `<svg class="w-6 h-6 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>`;
+
+                        const card = `
+                            <div class="bg-gray-50 p-4 border-l-4 rounded-lg shadow-sm flex items-center justify-between transition-transform duration-200 hover:scale-[1.01] cursor-pointer">
+                                <div class="flex items-center">
+                                    ${iconSVG}
+                                    <div>
+                                        <p class="text-gray-800 font-medium">${item.descricao}</p>
+                                        <p class="text-gray-500 text-sm">${new Date(item.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold ${valorClass} text-lg">${valorTexto}</span>
+                            </div>
+                        `;
+                        recentTransactionsList.innerHTML += card;
+                    });
+                }
+            } catch (err) {
+                recentTransactionsList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro ao carregar dados. Tente novamente.</p>';
+                console.error('Erro ao buscar dados para dashboard:', err);
+            } finally {
+                loadingDashboardContainer.classList.add('hidden');
+                console.log('Busca de dados do dashboard finalizada.');
+            }
+        }
+        
+        function showDashboard() {
+            startDateInput.value = '';
+            endDateInput.value = '';
+            fetchDashboardData();
+        }
+
+        async function fetchData() {
+            if (!supabase) return;
+
+            console.log('Iniciando busca de dados...');
+            dataList.innerHTML = '';
+            loadingContainer.classList.remove('hidden');
+            saldoTotal.textContent = 'A carregar...';
+
+            try {
+                const [receitasResult, despesasResult] = await Promise.all([
+                    supabase.from('receitas').select('*').order('created_at', { ascending: false }),
+                    supabase.from('despesas').select('*').order('created_at', { ascending: false })
+                ]);
+
+                if (receitasResult.error) throw receitasResult.error;
+                if (despesasResult.error) throw despesasResult.error;
+
+                const receitas = receitasResult.data;
+                const despesas = despesasResult.data;
+
+                const totalReceitas = receitas.reduce((sum, item) => sum + item.valor, 0);
+                const totalDespesas = despesas.reduce((sum, item) => sum + item.valor, 0);
+                const saldo = totalReceitas - totalDespesas;
+                saldoTotal.textContent = `Saldo: R$ ${saldo.toFixed(2)}`;
+                saldoTotal.style.color = saldo >= 0 ? '#16a34a' : '#dc2626';
+
+                const allData = [...receitas.map(item => ({ ...item, tipo: 'receita' })), ...despesas.map(item => ({ ...item, tipo: 'despesa' }))]
+                               .filter(item => item.created_at)
+                               .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                if (allData.length === 0) {
+                    dataList.innerHTML = '<p class="text-center text-gray-500">Nenhum lançamento encontrado. Adicione um para começar!</p>';
+                } else {
+                    dataList.innerHTML = '';
+                    allData.forEach(item => {
+                        const isReceita = item.tipo === 'receita';
+                        const cardClass = isReceita ? 'bg-white border-green-400' : 'bg-white border-red-400';
+                        const valorClass = isReceita ? 'text-green-600' : 'text-red-600';
+                        const valorTexto = isReceita ? `+ R$ ${item.valor.toFixed(2)}` : `- R$ ${item.valor.toFixed(2)}`;
+                        
+                        const iconSVG = isReceita ? 
+                            `<svg class="w-6 h-6 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>` : 
+                            `<svg class="w-6 h-6 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>`;
+
+                        const card = `
+                            <div class="bg-gray-50 p-4 border-l-4 rounded-lg shadow-sm flex items-center justify-between transition-transform duration-200 hover:scale-[1.01] cursor-pointer">
+                                <div class="flex items-center">
+                                    ${iconSVG}
+                                    <div>
+                                        <p class="text-gray-800 font-medium">${item.descricao}</p>
+                                        <p class="text-gray-500 text-sm">${new Date(item.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold ${valorClass} text-lg">${valorTexto}</span>
+                            </div>
+                        `;
+                        dataList.innerHTML += card;
+                    });
+                }
+            } catch (err) {
+                dataList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro ao carregar dados. Tente novamente.</p>';
+                console.error('Erro ao buscar dados:', err);
+            } finally {
+                loadingContainer.classList.add('hidden');
+                console.log('Busca de dados finalizada.');
+            }
+        }
+        
+        async function fetchServices() {
+            if (!supabase) return;
+
+            console.log('Iniciando busca de serviços...');
+            servicesList.innerHTML = '';
+            loadingServicesContainer.classList.remove('hidden');
+
+            try {
+                const { data, error } = await supabase.from('servicos').select('*').order('nome');
+
+                if (error) {
+                    if (error.code === 'PGRST205') {
+                        servicesList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro: Tabela "servicos" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.</p>';
+                    }
+                    throw error;
+                }
+
+                if (data.length === 0) {
+                    servicesList.innerHTML = '<p class="text-center text-gray-500">Nenhum serviço ou plano encontrado. Cadastre um para começar!</p>';
+                } else {
+                    data.forEach(service => {
+                        const card = `
+                            <div class="bg-indigo-50 p-6 rounded-2xl shadow-md border-l-4 border-indigo-400 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                                <div class="mb-4 sm:mb-0">
+                                    <h4 class="text-lg font-semibold text-indigo-800">${service.nome}</h4>
+                                    <p class="text-gray-600 mt-2">Tipo: ${service.tipo || 'Não especificado'}</p>
+                                    <p class="text-gray-600 mt-2">Valor: R$ ${service.valor.toFixed(2)}</p>
+                                    <p class="text-gray-500 mt-4">${service.descricao}</p>
+                                </div>
+                                <button data-service-id="${service.id}" data-service-name="${service.nome}" data-service-value="${service.valor}" class="start-job-btn w-full sm:w-auto py-2 px-4 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-300">
+                                    Iniciar Serviço
+                                </button>
+                            </div>
+                        `;
+                        servicesList.innerHTML += card;
+                    });
+
+                    // Adiciona event listeners aos botões "Iniciar Serviço"
+                    document.querySelectorAll('.start-job-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            const serviceId = e.target.getAttribute('data-service-id');
+                            const serviceName = e.target.getAttribute('data-service-name');
+                            const serviceValue = e.target.getAttribute('data-service-value');
+                            selectedServiceForJob = { id: serviceId, nome: serviceName, valor: serviceValue };
+                            
+                            jobModalServiceName.textContent = `Serviço selecionado: ${serviceName}`;
+                            jobDescriptionInput.value = '';
+                            addJobModal.classList.remove('hidden');
+                        });
+                    });
+                }
+            } catch (err) {
+                console.error('Erro ao buscar serviços:', err);
+            } finally {
+                loadingServicesContainer.classList.add('hidden');
+                console.log('Busca de serviços finalizada.');
+            }
+        }
+
+        async function fetchServiceJobs() {
+            if (!supabase) return;
+
+            console.log('Iniciando busca de jobs de serviço...');
+            serviceControlList.innerHTML = '';
+            loadingServiceControlContainer.classList.remove('hidden');
+
+            try {
+                const { data, error } = await supabase.from('servico_status').select('*').order('created_at', { ascending: false });
+
+                if (error) {
+                    if (error.code === 'PGRST205') {
+                        serviceControlList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro: Tabela "servico_status" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.</p>';
+                    }
+                    throw error;
+                }
+
+                if (data.length === 0) {
+                    serviceControlList.innerHTML = '<p class="text-center text-gray-500">Nenhum serviço em andamento. Inicie um na aba "Serviços e Planos".</p>';
+                } else {
+                    data.forEach(job => {
+                        const statusSelect = `
+                            <select data-job-id="${job.id}" class="status-select p-2 rounded-lg border border-gray-300 bg-white shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                ${serviceStatusOptions.map(option => `<option value="${option}" ${job.status === option ? 'selected' : ''}>${option}</option>`).join('')}
+                            </select>
+                        `;
+
+                        const card = `
+                            <div class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
+                                <div>
+                                    <p class="font-medium text-gray-800">${job.descricao_job}</p>
+                                    <p class="text-sm text-gray-500">Plano: ${job.nome_servico_plano} | Valor: R$ ${job.valor.toFixed(2)}</p>
+                                </div>
+                                ${statusSelect}
+                            </div>
+                        `;
+                        serviceControlList.innerHTML += card;
+                    });
+                     // Adiciona event listeners para a mudança de status
+                    document.querySelectorAll('.status-select').forEach(select => {
+                        select.addEventListener('change', async (e) => {
+                            const jobId = e.target.getAttribute('data-job-id');
+                            const newStatus = e.target.value;
+                            await updateServiceStatus(jobId, newStatus);
+                        });
+                    });
+                }
+            } catch (err) {
+                 if (err.code === 'PGRST205') {
+                     serviceControlList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro: Tabela "servico_status" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.</p>';
+                 }
+                console.error('Erro ao buscar jobs de serviço:', err);
+            } finally {
+                loadingServiceControlContainer.classList.add('hidden');
+                console.log('Busca de jobs de serviço finalizada.');
+            }
+        }
+
+        async function updateServiceStatus(jobId, newStatus) {
+            if (!supabase) return;
+            try {
+                const { error } = await supabase.from('servico_status')
+                    .update({ status: newStatus })
+                    .eq('id', jobId);
+                
+                if (error) {
+                    throw error;
+                }
+                showMessage('Status do serviço atualizado com sucesso!', false);
+            } catch (err) {
+                showMessage(`Erro ao atualizar o status: ${err.message}`, true);
+                console.error('Erro ao atualizar status:', err);
+            }
+        }
+
+        async function addReceita(descricao, valor) {
+            if (!supabase) return;
+
+            try {
+                const { error } = await supabase.from('receitas').insert([{ descricao, valor }]);
+                if (error) {
+                    throw error;
+                }
+                showMessage('Entrada adicionada com sucesso!', false);
+                receitaDescricaoInput.value = '';
+                receitaValorInput.value = '';
+                fetchData();
+                showDashboard();
+            } catch (err) {
+                showMessage(`Erro: ${err.message}`, true);
+                console.error('Erro ao adicionar receita:', err);
+            }
+        }
+        
+        async function addDespesa(descricao, valor) {
+            if (!supabase) return;
+
+            try {
+                const { error } = await supabase.from('despesas').insert([{ descricao, valor }]);
+                if (error) {
+                    throw error;
+                }
+                showMessage('Saída adicionada com sucesso!', false);
+                despesaDescricaoInput.value = '';
+                despesaValorInput.value = '';
+                fetchData();
+                showDashboard();
+            } catch (err) {
+                showMessage(`Erro: ${err.message}`, true);
+                console.error('Erro ao adicionar despesa:', err);
+            }
+        }
+
+        async function addService() {
+            if (!supabase) return;
+
+            const nome = serviceNameInput.value.trim();
+            const descricao = serviceDescriptionInput.value.trim();
+            const tipo = serviceTypeInput.value;
+            const valor = parseFloat(servicePriceInput.value);
+
+            if (!nome || !descricao || !tipo || isNaN(valor) || valor <= 0) {
+                showMessage('Por favor, preencha todos os campos do serviço, incluindo o tipo, com valores válidos.', true);
+                return;
+            }
+
+            try {
+                const { error } = await supabase.from('servicos').insert([{ nome, descricao, tipo, valor }]);
+                if (error) {
+                    if (error.code === 'PGRST205') {
+                         showMessage('Erro: Tabela "servicos" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.', true);
+                    }
+                    throw error;
+                }
+                showMessage('Serviço cadastrado com sucesso!', false);
+                serviceNameInput.value = '';
+                serviceDescriptionInput.value = '';
+                serviceTypeInput.value = '';
+                servicePriceInput.value = '';
+                fetchServices();
+            } catch (err) {
+                console.error('Erro ao adicionar serviço:', err);
+            }
+        }
+
+        async function addServiceJob() {
+             if (!supabase || !selectedServiceForJob) return;
+
+             const descricaoJob = jobDescriptionInput.value.trim();
+             if (!descricaoJob) {
+                 showMessage('Por favor, insira o nome do serviço/cliente.', true);
                  return;
-            }
+             }
 
-            transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()).forEach(t => {
-                const transactionItem = document.createElement('div');
-                transactionItem.className = `p-4 rounded-xl flex justify-between items-center transition duration-300 transform hover:scale-105 ${t.tipo === 'receita' ? 'bg-green-100 border-l-4 border-green-500' : 'bg-red-100 border-l-4 border-red-500'}`;
-                transactionItem.innerHTML = `
-                    <div>
-                        <p class="font-bold text-gray-800">${t.descricao}</p>
-                        <p class="text-sm text-gray-500">${new Date(t.timestamp.toDate()).toLocaleDateString()}</p>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <span class="font-bold text-lg ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}">
-                            ${t.tipo === 'receita' ? '+' : '-'} ${formatCurrency(t.valor)}
-                        </span>
-                        <button class="delete-btn text-gray-400 hover:text-red-500" data-id="${t.id}">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                        </button>
-                    </div>
-                `;
-                list.appendChild(transactionItem);
-            });
+             const newJob = {
+                 nome_servico_plano: selectedServiceForJob.nome,
+                 descricao_job: descricaoJob,
+                 valor: selectedServiceForJob.valor,
+                 status: 'Agendado'
+             };
 
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', financeModule.deleteTransaction);
-            });
-        };
-
-        financeModule.addReceita = async () => {
-            if (!userId) {
-                showMessage('Faça login para adicionar lançamentos.', true);
-                return;
-            }
-            const descricao = document.getElementById('receita-descricao').value;
-            const valor = parseFloat(document.getElementById('receita-valor').value);
-            if (descricao && valor) {
-                try {
-                    const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
-                    await setDoc(docRef, {
-                        descricao,
-                        valor,
-                        tipo: 'receita',
-                        timestamp: serverTimestamp()
-                    });
-                    showMessage('Entrada adicionada com sucesso!', false);
-                    document.getElementById('receita-descricao').value = '';
-                    document.getElementById('receita-valor').value = '';
-                } catch (e) {
-                    console.error("Erro ao adicionar documento: ", e);
-                    showMessage('Erro ao adicionar entrada.', true);
+             try {
+                const { error } = await supabase.from('servico_status').insert([newJob]);
+                if (error) {
+                    if (error.code === 'PGRST205') {
+                         showMessage('Erro: Tabela "servico_status" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.', true);
+                    }
+                    throw error;
                 }
+                showMessage('Serviço iniciado com sucesso!', false);
+                addJobModal.classList.add('hidden');
+                fetchServiceJobs();
+             } catch (err) {
+                 showMessage(`Erro ao iniciar o serviço: ${err.message}`, true);
+                 console.error('Erro ao adicionar job de serviço:', err);
+             }
+        }
+
+        addReceitaBtn.addEventListener('click', () => {
+            const descricao = receitaDescricaoInput.value.trim();
+            const valor = parseFloat(receitaValorInput.value);
+            if (descricao && !isNaN(valor) && valor > 0) {
+                addReceita(descricao, valor);
             } else {
-                showMessage('Preencha todos os campos para a entrada.', true);
+                showMessage('Por favor, preencha a descrição e um valor válido.', true);
             }
-        };
+        });
 
-        financeModule.addDespesa = async () => {
-            if (!userId) {
-                showMessage('Faça login para adicionar lançamentos.', true);
-                return;
-            }
-            const descricao = document.getElementById('despesa-descricao').value;
-            const valor = parseFloat(document.getElementById('despesa-valor').value);
-            if (descricao && valor) {
-                try {
-                    const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
-                    await setDoc(docRef, {
-                        descricao,
-                        valor,
-                        tipo: 'despesa',
-                        timestamp: serverTimestamp()
-                    });
-                    showMessage('Saída adicionada com sucesso!', false);
-                    document.getElementById('despesa-descricao').value = '';
-                    document.getElementById('despesa-valor').value = '';
-                } catch (e) {
-                    console.error("Erro ao adicionar documento: ", e);
-                    showMessage('Erro ao adicionar saída.', true);
-                }
+        addDespesaBtn.addEventListener('click', () => {
+            const descricao = despesaDescricaoInput.value.trim();
+            const valor = parseFloat(despesaValorInput.value);
+            if (descricao && !isNaN(valor) && valor > 0) {
+                addDespesa(descricao, valor);
             } else {
-                showMessage('Preencha todos os campos para a saída.', true);
+                showMessage('Por favor, preencha a descrição e um valor válido.', true);
             }
-        };
+        });
+        
+        addServiceBtn.addEventListener('click', addService);
 
-        financeModule.deleteTransaction = async (event) => {
-            if (!userId) return;
-            const docId = event.currentTarget.getAttribute('data-id');
-            if (docId) {
-                try {
-                    const docRef = doc(db, `artifacts/${appId}/users/${userId}/transactions`, docId);
-                    await deleteDoc(docRef);
-                    showMessage('Lançamento excluído com sucesso!', false);
-                } catch (e) {
-                    console.error("Erro ao excluir documento: ", e);
-                    showMessage('Erro ao excluir lançamento.', true);
-                }
-            }
-        };
-
-        financeModule.exportToCSV = () => {
-             if (!userId) {
-                showMessage('Faça login para exportar dados.', true);
+        exportBtn.addEventListener('click', async () => {
+            if (!supabase) {
+                showMessage('Erro: As chaves do Supabase não foram configuradas.', true);
                 return;
             }
-            const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-            const q = query(transactionsRef);
 
-            getDocs(q).then(snapshot => {
-                const transactions = snapshot.docs.map(doc => doc.data());
-                if (transactions.length === 0) {
-                    showMessage('Nenhum dado para exportar.', true);
+            try {
+                const [receitasResult, despesasResult] = await Promise.all([
+                    supabase.from('receitas').select('*'),
+                    supabase.from('despesas').select('*')
+                ]);
+
+                if (receitasResult.error || despesaResult.error) {
+                    throw new Error('Falha ao buscar dados para exportação.');
+                }
+
+                const receitas = receitasResult.data.map(d => ({ ...d, tipo: 'receita' }));
+                const despesas = despesaResult.data.map(d => ({ ...d, tipo: 'despesa' }));
+                const allData = [...receitas, ...despesas];
+
+                if (allData.length === 0) {
+                    showMessage('Não há dados para exportar.', true);
                     return;
                 }
 
-                const headers = ['Descrição', 'Tipo', 'Valor', 'Data'];
-                const rows = transactions.map(t => [
-                    t.descricao,
-                    t.tipo,
-                    t.valor,
-                    t.timestamp.toDate().toLocaleDateString()
-                ]);
+                const headers = ["tipo", "descricao", "valor", "data"];
+                const csvContent = "data:text/csv;charset=utf-8," +
+                    headers.join(";") + "\n" +
+                    allData.map(item =>
+                        `${item.tipo};${item.descricao};${item.valor};${new Date(item.created_at).toLocaleDateString()}`
+                    ).join("\n");
 
-                let csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.map(e => e.join(',')).join("\n");
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
@@ -889,507 +1085,102 @@
                 link.click();
                 document.body.removeChild(link);
                 showMessage('Dados exportados com sucesso!', false);
-            }).catch(e => {
-                console.error("Erro ao exportar dados: ", e);
-                showMessage('Erro ao exportar dados.', true);
-            });
-        };
 
-        // --- Módulo de Serviços ---
-        servicesModule.init = () => {
-            servicesModule.fetchServices();
-            document.getElementById('add-service-btn').addEventListener('click', servicesModule.addService);
-            
-            // Event listeners para os botões do modal de job
-            document.getElementById('cancel-job-btn').addEventListener('click', () => {
-                document.getElementById('add-job-modal').classList.add('hidden');
-                servicesModule.selectedServiceForJob = null;
-            });
-            document.getElementById('save-job-btn').addEventListener('click', servicesModule.addServiceJob);
-        };
-
-        servicesModule.fetchServices = () => {
-            if (!userId) return;
-            toggleLoader('loading-services-container', true);
-            const servicesRef = collection(db, `artifacts/${appId}/users/${userId}/services`);
-            const q = query(servicesRef);
-
-            onSnapshot(q, (snapshot) => {
-                const services = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                servicesModule.renderServices(services);
-                // Preenche o select do modal de evento na agenda
-                const serviceSelect = document.getElementById('event-service-type');
-                serviceSelect.innerHTML = '<option value="">-- Tipo de Serviço --</option>';
-                services.forEach(service => {
-                    const option = document.createElement('option');
-                    option.value = service.id;
-                    option.textContent = service.nome;
-                    serviceSelect.appendChild(option);
-                });
-                toggleLoader('loading-services-container', false);
-
-                // Carrega os serviços para a tela de controle
-                servicesModule.fetchServiceControl();
-
-            }, (error) => {
-                console.error("Erro ao buscar serviços:", error);
-                showMessage('Erro ao carregar serviços.', true);
-                toggleLoader('loading-services-container', false);
-            });
-        };
-
-        servicesModule.renderServices = (services) => {
-            const list = document.getElementById('services-list');
-            list.innerHTML = '';
-            if (services.length === 0) {
-                 list.innerHTML = '<p class="text-gray-500 text-center">Nenhum serviço cadastrado.</p>';
-                 return;
+            } catch (error) {
+                showMessage(`Erro ao exportar: ${error.message}`, true);
+                console.error('Erro de exportação:', error);
             }
-            services.forEach(s => {
-                const serviceItem = document.createElement('div');
-                serviceItem.className = `bg-white p-6 rounded-2xl shadow-lg border-l-4 border-gray-400 transition duration-300 transform hover:scale-105 hover:shadow-xl`;
-                serviceItem.innerHTML = `
-                    <h4 class="text-lg font-bold text-gray-900">${s.nome}</h4>
-                    <p class="text-gray-600 mt-2 text-sm">${s.descricao}</p>
-                    <p class="font-semibold text-gray-800 mt-2">${formatCurrency(s.valor)}</p>
-                    <p class="text-sm text-gray-500 mt-1">Tipo: ${s.tipo}</p>
-                    <button class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700" data-id="${s.id}" data-name="${s.nome}" data-price="${s.valor}">
-                        Iniciar Serviço
-                    </button>
-                `;
-                list.appendChild(serviceItem);
-            });
-            document.querySelectorAll('#services-list button').forEach(btn => {
-                btn.addEventListener('click', servicesModule.openAddJobModal);
-            });
-        };
+        });
 
-        servicesModule.addService = async () => {
-            if (!userId) {
-                showMessage('Faça login para cadastrar serviços.', true);
-                return;
-            }
-            const nome = document.getElementById('service-name').value;
-            const descricao = document.getElementById('service-description').value;
-            const tipo = document.getElementById('service-type').value;
-            const valor = parseFloat(document.getElementById('service-price').value);
 
-            if (nome && descricao && tipo && !isNaN(valor)) {
-                try {
-                    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/services`), {
-                        nome,
-                        descricao,
-                        tipo,
-                        valor,
-                        createdAt: serverTimestamp()
-                    });
-                    showMessage('Serviço cadastrado com sucesso!', false);
-                    document.getElementById('service-name').value = '';
-                    document.getElementById('service-description').value = '';
-                    document.getElementById('service-type').value = '';
-                    document.getElementById('service-price').value = '';
-                } catch (e) {
-                    console.error("Erro ao adicionar serviço: ", e);
-                    showMessage('Erro ao cadastrar serviço.', true);
-                }
-            } else {
-                showMessage('Preencha todos os campos para o serviço.', true);
-            }
-        };
+        const calendarDays = document.getElementById('calendar-days');
+        const currentMonthYear = document.getElementById('current-month-year');
+        const addEventBtn = document.getElementById('add-event-btn');
+        const addEventModal = document.getElementById('add-event-modal');
+        const saveEventBtn = document.getElementById('save-event-btn');
+        const cancelEventBtn = document.getElementById('cancel-event-btn');
+        const eventDateInput = document.getElementById('event-date');
 
-        servicesModule.openAddJobModal = (event) => {
-            servicesModule.selectedServiceForJob = {
-                id: event.currentTarget.dataset.id,
-                name: event.currentTarget.dataset.name,
-                price: parseFloat(event.currentTarget.dataset.price)
-            };
-            document.getElementById('job-modal-service-name').textContent = `Serviço: ${servicesModule.selectedServiceForJob.name}`;
-            document.getElementById('add-job-modal').classList.remove('hidden');
-            document.getElementById('job-description').value = '';
-        };
+        let currentDate = new Date();
 
-        servicesModule.addServiceJob = async () => {
-            if (!userId || !servicesModule.selectedServiceForJob) return;
-            const jobDescription = document.getElementById('job-description').value;
+        function renderCalendar() {
+            calendarDays.innerHTML = '';
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            currentMonthYear.textContent = new Date(year, month).toLocaleString('pt-br', { month: 'long', year: 'numeric' });
 
-            if (jobDescription) {
-                try {
-                    const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/serviceJobs`));
-                    await setDoc(docRef, {
-                        serviceId: servicesModule.selectedServiceForJob.id,
-                        serviceName: servicesModule.selectedServiceForJob.name,
-                        clientName: jobDescription,
-                        status: 'Em Andamento',
-                        price: servicesModule.selectedServiceForJob.price,
-                        timestamp: serverTimestamp()
-                    });
-                    showMessage('Serviço iniciado com sucesso!', false);
-                    document.getElementById('add-job-modal').classList.add('hidden');
-                    servicesModule.selectedServiceForJob = null;
-                } catch (e) {
-                    console.error("Erro ao adicionar job: ", e);
-                    showMessage('Erro ao iniciar o serviço.', true);
-                }
-            } else {
-                showMessage('O nome do cliente/job é obrigatório.', true);
-            }
-        };
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        servicesModule.fetchServiceControl = () => {
-            if (!userId) return;
-            toggleLoader('loading-service-control-container', true);
-            const jobsRef = collection(db, `artifacts/${appId}/users/${userId}/serviceJobs`);
-            const q = query(jobsRef);
-            
-            onSnapshot(q, (snapshot) => {
-                const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                servicesModule.renderServiceControl(jobs);
-                toggleLoader('loading-service-control-container', false);
-            }, (error) => {
-                console.error("Erro ao buscar controle de serviços:", error);
-                showMessage('Erro ao carregar o controle de serviços.', true);
-                toggleLoader('loading-service-control-container', false);
-            });
-        };
-
-        servicesModule.renderServiceControl = (jobs) => {
-            const list = document.getElementById('service-control-list');
-            list.innerHTML = '';
-            if (jobs.length === 0) {
-                 list.innerHTML = '<p class="text-gray-500 text-center">Nenhum serviço em andamento.</p>';
-                 return;
-            }
-
-            jobs.sort((a,b) => b.timestamp.toDate() - a.timestamp.toDate()).forEach(job => {
-                let statusColor = '';
-                let statusText = '';
-                switch(job.status) {
-                    case 'Em Andamento':
-                        statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-500';
-                        statusText = 'Em Andamento';
-                        break;
-                    case 'Concluído':
-                        statusColor = 'bg-green-100 text-green-800 border-green-500';
-                        statusText = 'Concluído';
-                        break;
-                    case 'Cancelado':
-                        statusColor = 'bg-red-100 text-red-800 border-red-500';
-                        statusText = 'Cancelado';
-                        break;
-                    default:
-                        statusColor = 'bg-gray-100 text-gray-800 border-gray-500';
-                        statusText = 'Desconhecido';
-                }
-
-                const jobItem = document.createElement('div');
-                jobItem.className = `p-4 rounded-xl shadow-md border-l-4 ${statusColor} flex justify-between items-center transition duration-300 transform hover:scale-105`;
-                jobItem.innerHTML = `
-                    <div>
-                        <p class="font-bold text-gray-900">${job.clientName}</p>
-                        <p class="text-sm text-gray-700 mt-1">${job.serviceName}</p>
-                        <p class="text-xs text-gray-500 mt-1">Status: <span class="font-semibold">${statusText}</span></p>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button class="update-status-btn bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg text-xs" data-id="${job.id}" data-status="Concluído">Concluir</button>
-                        <button class="update-status-btn bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg text-xs" data-id="${job.id}" data-status="Cancelado">Cancelar</button>
-                        <button class="delete-job-btn text-gray-400 hover:text-red-500 p-2 rounded-lg" data-id="${job.id}">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                        </button>
-                    </div>
-                `;
-                list.appendChild(jobItem);
-            });
-
-            document.querySelectorAll('.update-status-btn').forEach(btn => {
-                btn.addEventListener('click', servicesModule.updateJobStatus);
-            });
-            document.querySelectorAll('.delete-job-btn').forEach(btn => {
-                btn.addEventListener('click', servicesModule.deleteJob);
-            });
-        };
-
-        servicesModule.updateJobStatus = async (event) => {
-            if (!userId) return;
-            const docId = event.currentTarget.dataset.id;
-            const newStatus = event.currentTarget.dataset.status;
-            try {
-                const jobRef = doc(db, `artifacts/${appId}/users/${userId}/serviceJobs`, docId);
-                await updateDoc(jobRef, { status: newStatus });
-
-                // Se o status for 'Concluído', adiciona como uma receita
-                if (newStatus === 'Concluído') {
-                    const jobDoc = await getDoc(jobRef);
-                    if (jobDoc.exists()) {
-                        const jobData = jobDoc.data();
-                        const financeDocRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
-                        await setDoc(financeDocRef, {
-                            descricao: `Receita do serviço: ${jobData.serviceName} - Cliente: ${jobData.clientName}`,
-                            valor: jobData.price,
-                            tipo: 'receita',
-                            timestamp: serverTimestamp()
-                        });
-                        showMessage('Serviço concluído e receita adicionada!', false);
-                    }
-                } else {
-                    showMessage(`Status do serviço atualizado para "${newStatus}".`, false);
-                }
-
-            } catch (e) {
-                console.error("Erro ao atualizar status do job:", e);
-                showMessage('Erro ao atualizar status do serviço.', true);
-            }
-        };
-
-        servicesModule.deleteJob = async (event) => {
-            if (!userId) return;
-            const docId = event.currentTarget.dataset.id;
-            try {
-                const jobRef = doc(db, `artifacts/${appId}/users/${userId}/serviceJobs`, docId);
-                await deleteDoc(jobRef);
-                showMessage('Serviço removido do controle.', false);
-            } catch (e) {
-                console.error("Erro ao remover job:", e);
-                showMessage('Erro ao remover serviço do controle.', true);
-            }
-        };
-
-        // --- Módulo de Agenda ---
-        calendarModule.init = () => {
-            calendarModule.currentDate = new Date();
-            calendarModule.selectedDay = null;
-            calendarModule.renderCalendar();
-            calendarModule.fetchEvents();
-
-            document.getElementById('prev-month-btn').addEventListener('click', calendarModule.prevMonth);
-            document.getElementById('next-month-btn').addEventListener('click', calendarModule.nextMonth);
-            document.getElementById('add-event-btn').addEventListener('click', calendarModule.openAddEventModal);
-            document.getElementById('save-event-btn').addEventListener('click', calendarModule.saveEvent);
-            document.getElementById('cancel-event-btn').addEventListener('click', calendarModule.closeAddEventModal);
-        };
-
-        calendarModule.renderCalendar = () => {
-            const monthYearEl = document.getElementById('current-month-year');
-            const calendarDaysEl = document.getElementById('calendar-days');
-            const daysInMonth = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth() + 1, 0).getDate();
-            const firstDayIndex = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth(), 1).getDay();
-
-            monthYearEl.textContent = calendarModule.currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
-            calendarDaysEl.innerHTML = '';
-
-            for (let i = 0; i < firstDayIndex; i++) {
+            for (let i = 0; i < firstDayOfMonth; i++) {
                 const emptyDay = document.createElement('div');
-                calendarDaysEl.appendChild(emptyDay);
+                calendarDays.appendChild(emptyDay);
             }
-
             for (let i = 1; i <= daysInMonth; i++) {
-                const dayEl = document.createElement('div');
-                dayEl.textContent = i;
-                dayEl.className = 'calendar-day p-2 rounded-lg text-center cursor-pointer hover:bg-gray-200 transition-colors';
-                
-                const dayDate = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth(), i);
-                if (calendarModule.selectedDay && dayDate.toDateString() === calendarModule.selectedDay.toDateString()) {
-                    dayEl.classList.add('active');
-                }
-
-                dayEl.addEventListener('click', () => calendarModule.selectDay(dayDate));
-                calendarDaysEl.appendChild(dayEl);
-            }
-
-            // Após renderizar o calendário, renderiza os eventos para o dia selecionado (se houver)
-            calendarModule.renderEventsForSelectedDay();
-        };
-
-        calendarModule.selectDay = (date) => {
-            calendarModule.selectedDay = date;
-            const days = document.querySelectorAll('.calendar-day');
-            days.forEach(day => day.classList.remove('active'));
-            
-            // Encontra e ativa o dia selecionado
-            const dayEls = document.getElementById('calendar-days').children;
-            const dayIndex = date.getDate() + (new Date(date.getFullYear(), date.getMonth(), 1).getDay()) - 1;
-            if (dayEls[dayIndex]) {
-                 dayEls[dayIndex].classList.add('active');
-            }
-
-            // Exibe os eventos para o dia selecionado
-            calendarModule.renderEventsForSelectedDay();
-        };
-
-        calendarModule.prevMonth = () => {
-            calendarModule.currentDate.setMonth(calendarModule.currentDate.getMonth() - 1);
-            calendarModule.renderCalendar();
-            calendarModule.fetchEvents();
-        };
-
-        calendarModule.nextMonth = () => {
-            calendarModule.currentDate.setMonth(calendarModule.currentDate.getMonth() + 1);
-            calendarModule.renderCalendar();
-            calendarModule.fetchEvents();
-        };
-
-        calendarModule.fetchEvents = () => {
-            if (!userId) return;
-            const eventsRef = collection(db, `artifacts/${appId}/users/${userId}/events`);
-            const q = query(eventsRef);
-
-            onSnapshot(q, (snapshot) => {
-                calendarModule.events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                calendarModule.renderEventsForSelectedDay();
-            }, (error) => {
-                console.error("Erro ao buscar eventos:", error);
-                showMessage('Erro ao carregar eventos da agenda.', true);
-            });
-        };
-        
-        calendarModule.renderEventsForSelectedDay = () => {
-            const list = document.getElementById('events-list');
-            const noEventsMessage = document.getElementById('no-events-message');
-            list.innerHTML = '';
-            
-            if (!calendarModule.selectedDay) {
-                noEventsMessage.classList.remove('hidden');
-                return;
-            }
-
-            const eventsToday = calendarModule.events.filter(event => {
-                 const eventDate = event.date.toDate();
-                 return eventDate.toDateString() === calendarModule.selectedDay.toDateString();
-            });
-
-            if (eventsToday.length === 0) {
-                noEventsMessage.classList.remove('hidden');
-            } else {
-                noEventsMessage.classList.add('hidden');
-                eventsToday.sort((a,b) => a.time.localeCompare(b.time)).forEach(event => {
-                    const eventItem = document.createElement('div');
-                    eventItem.className = 'p-4 rounded-xl shadow-md border-l-4 border-indigo-500 bg-indigo-50 flex justify-between items-center transition duration-300 transform hover:scale-105';
-                    eventItem.innerHTML = `
-                        <div>
-                            <p class="font-bold text-gray-900">${event.title}</p>
-                            <p class="text-sm text-gray-700 mt-1">Horário: ${event.time}</p>
-                            <p class="text-xs text-gray-500 mt-1">Local: ${event.location || 'N/A'}</p>
-                            <p class="text-xs text-gray-500 mt-1">Serviço: ${event.serviceName || 'N/A'}</p>
-                        </div>
-                        <button class="delete-event-btn text-gray-400 hover:text-red-500 p-2 rounded-lg" data-id="${event.id}">
-                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                        </button>
-                    `;
-                    list.appendChild(eventItem);
+                const day = document.createElement('div');
+                day.textContent = i;
+                day.className = 'text-center p-2 rounded-full cursor-pointer hover:bg-gray-200 transition-colors';
+                day.addEventListener('click', () => {
+                    const formattedDate = new Date(year, month, i).toISOString().split('T')[0];
+                    eventDateInput.value = formattedDate;
+                    addEventModal.classList.remove('hidden');
                 });
-
-                document.querySelectorAll('.delete-event-btn').forEach(btn => {
-                    btn.addEventListener('click', calendarModule.deleteEvent);
-                });
+                calendarDays.appendChild(day);
             }
-        };
+        }
 
+        addEventBtn.addEventListener('click', () => {
+            addEventModal.classList.remove('hidden');
+        });
 
-        calendarModule.openAddEventModal = () => {
-            document.getElementById('event-title').value = '';
-            document.getElementById('event-date').value = calendarModule.selectedDay ? calendarModule.selectedDay.toISOString().substring(0, 10) : '';
-            document.getElementById('event-time').value = '';
-            document.getElementById('event-location').value = '';
-            document.getElementById('event-service-type').value = '';
-            document.getElementById('add-event-modal').classList.remove('hidden');
-        };
+        cancelEventBtn.addEventListener('click', () => {
+            addEventModal.classList.add('hidden');
+        });
 
-        calendarModule.closeAddEventModal = () => {
-            document.getElementById('add-event-modal').classList.add('hidden');
-        };
-        
-        calendarModule.saveEvent = async () => {
-            if (!userId) {
-                showMessage('Faça login para salvar eventos.', true);
-                return;
-            }
+        saveEventBtn.addEventListener('click', () => {
             const title = document.getElementById('event-title').value;
             const date = document.getElementById('event-date').value;
-            const time = document.getElementById('event-time').value;
-            const location = document.getElementById('event-location').value;
-            const serviceId = document.getElementById('event-service-type').value;
-            const serviceName = document.getElementById('event-service-type').options[document.getElementById('event-service-type').selectedIndex].text;
-
             if (title && date) {
-                try {
-                     const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/events`));
-                     await setDoc(docRef, {
-                        title,
-                        date: new Date(date),
-                        time,
-                        location,
-                        serviceId,
-                        serviceName,
-                        createdAt: serverTimestamp()
-                     });
-                     showMessage('Evento salvo com sucesso!', false);
-                     calendarModule.closeAddEventModal();
-                } catch(e) {
-                     console.error("Erro ao salvar evento:", e);
-                     showMessage('Erro ao salvar o evento.', true);
-                }
+                showMessage('Evento salvo com sucesso! (Lógica simplificada)', false);
+                addEventModal.classList.add('hidden');
             } else {
                 showMessage('Título e data são obrigatórios.', true);
             }
-        };
+        });
 
-        calendarModule.deleteEvent = async (event) => {
-            if (!userId) return;
-            const docId = event.currentTarget.dataset.id;
-            try {
-                const docRef = doc(db, `artifacts/${appId}/users/${userId}/events`, docId);
-                await deleteDoc(docRef);
-                showMessage('Evento excluído com sucesso.', false);
-            } catch (e) {
-                console.error("Erro ao excluir evento:", e);
-                showMessage('Erro ao excluir o evento.', true);
+        renderCalendar();
+        
+        applyFilterBtn.addEventListener('click', () => {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            if (!startDate || !endDate) {
+                showMessage('Por favor, selecione as duas datas.', true);
+                return;
             }
-        };
+            if (new Date(startDate) > new Date(endDate)) {
+                showMessage('A Data Inicial não pode ser posterior à Data Final.', true);
+                return;
+            }
 
-
-        // --- Eventos da UI e Navegação ---
-        document.getElementById('login-btn').addEventListener('click', authModule.handleLogin);
-
-        logoutBtns.forEach(btn => {
-            btn.addEventListener('click', authModule.handleLogout);
+            fetchDashboardData(startDate, endDate);
         });
 
-        // Navegação da sidebar
-        sidebarBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetTabId = btn.getAttribute('data-tab');
-                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
-                document.getElementById(targetTabId).classList.remove('hidden');
-
-                sidebarBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                // Esconde a sidebar em telas pequenas
-                if (window.innerWidth < 1024) {
-                    sidebar.classList.add('-translate-x-full');
-                }
-
-                // Dispara a função init do módulo correspondente, caso ainda não tenha sido feito
-                // Já fizemos isso em onAuthStateChanged, mas para garantir
-            });
+        clearFilterBtn.addEventListener('click', () => {
+            startDateInput.value = '';
+            endDateInput.value = '';
+            fetchDashboardData();
         });
 
-        // Toggle do menu em mobile
-        menuBtn.addEventListener('click', () => {
-            sidebar.classList.remove('-translate-x-full');
+        // Event listeners para o modal de iniciar serviço
+        cancelJobBtn.addEventListener('click', () => {
+            addJobModal.classList.add('hidden');
+            selectedServiceForJob = null;
         });
 
-        closeMenuBtn.addEventListener('click', () => {
-            sidebar.classList.add('-translate-x-full');
+        saveJobBtn.addEventListener('click', () => {
+            addServiceJob();
         });
-
-        // Inicializa a aplicação
-        window.onload = () => {
-            authModule.setup();
-        };
 
     </script>
 
