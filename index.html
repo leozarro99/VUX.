@@ -1,1308 +1,1392 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VUX Control</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
-        }
-        .vux-logo {
-            background-color: #4b3e34;
-            color: #d6cdc3;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .sidebar-btn.active {
-            background-color: #2e2621;
-            color: white;
-            border-left: 4px solid #d6cdc3;
-        }
-        .sidebar-btn:not(.active) {
-            border-left: 4px solid transparent;
-        }
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            transition: all 0.5s ease-in-out;
-            opacity: 0;
-            visibility: hidden;
-        }
-        .message-box.show {
-            opacity: 1;
-            visibility: visible;
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4b3e34;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .day-with-event {
-            position: relative;
-        }
-        .day-with-event::after {
-            content: '';
-            position: absolute;
-            bottom: 4px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 6px;
-            height: 6px;
-            background-color: #4b3e34;
-            border-radius: 50%;
-        }
-        .status-agendado {
-            background-color: #2563eb;
-        }
-        .status-em-andamento {
-            background-color: #f59e0b;
-        }
-        .status-enviado-para-o-cliente {
-            background-color: #10b981;
-        }
-        .status-aprovado-pelo-cliente {
-            background-color: #8b5cf6;
-        }
-        .status-concluido-entregue {
-            background-color: #16a34a;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VUX Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body {
+font-family: 'Inter', sans-serif;
+background-color: #f0f2f5;
+overflow-x: hidden; /* Evita rolagem horizontal indesejada */
+}
+.vux-logo {
+background-color: #4b3e34;
+color: #d6cdc3;
+font-weight: bold;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.sidebar-btn.active {
+background-color: #2e2621;
+color: white;
+border-left: 4px solid #d6cdc3;
+}
+.sidebar-btn:not(.active) {
+border-left: 4px solid transparent;
+}
+.message-box {
+position: fixed;
+top: 20px;
+left: 50%;
+transform: translateX(-50%);
+z-index: 1000;
+padding: 12px 24px;
+border-radius: 8px;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+transition: all 0.5s ease-in-out;
+opacity: 0;
+visibility: hidden;
+max-width: 90%;
+text-align: center;
+}
+.message-box.show {
+opacity: 1;
+visibility: visible;
+}
+.loader {
+border: 4px solid #f3f3f3;
+border-top: 4px solid #4b3e34;
+border-radius: 50%;
+width: 24px;
+height: 24px;
+animation: spin 1s linear infinite;
+}
+@keyframes spin {
+0% { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
+}
+.tab-content {
+display: none;
+animation: fadeIn 0.5s ease-in-out;
+}
+.tab-content.active {
+display: block;
+}
+@keyframes fadeIn {
+from { opacity: 0; transform: translateY(10px); }
+to { opacity: 1; transform: translateY(0); }
+}
+.calendar-day.active {
+background-color: #4b3e34 !important;
+color: white;
+}
+</style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-
-    <div id="message-box" class="message-box"></div>
-
-    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-4xl">
-
-        <!-- Visão de Login -->
-        <div id="auth-view" class="space-y-6">
-            <div class="flex flex-col items-center">
-                <div class="vux-logo h-24 w-24 rounded-full mb-6 text-3xl shadow-md">
-                    VUX.
-                </div>
-                <h2 class="text-4xl font-bold text-gray-900 text-center">Controle VUX</h2>
-                <p class="text-gray-500 text-center mt-2">Acesso protegido. Faça login para continuar.</p>
-            </div>
-            <div class="space-y-4">
-                <div>
-                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="admin@vux.com">
-                </div>
-                <div>
-                    <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
-                    <input type="password" id="password" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="123456">
-                </div>
-                <div class="text-center text-red-500 font-medium" id="auth-error-message"></div>
-                <button id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-semibold text-white bg-[#4b3e34] hover:bg-[#5b4d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4b3e34] transition duration-300 ease-in-out transform hover:scale-105">
-                    Entrar
-                </button>
-            </div>
-        </div>
-
-        <!-- Visão do Dashboard Principal -->
-        <div id="dashboard-view" class="hidden">
-            <header class="flex justify-between items-center mb-8">
-                <button id="menu-btn" class="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition duration-300">
-                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-                    </svg>
-                </button>
-                <div class="flex items-center space-x-4">
-                    <h1 class="text-2xl font-bold text-gray-900 hidden sm:block">VUX Control</h1>
-                </div>
-                <button id="logout-btn" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-                    Sair
-                </button>
-            </header>
-            
-            <div id="content-dashboard" class="tab-content">
-                <!-- Seletor de Período -->
-                <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Filtrar por Período</h3>
-                    <div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-                        <div class="flex-1 w-full">
-                            <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
-                            <input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5">
-                        </div>
-                        <div class="flex-1 w-full">
-                            <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
-                            <input type="date" id="endDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5">
-                        </div>
-                    </div>
-                    <div class="flex mt-4 space-x-2">
-                        <button id="applyFilterBtn" class="flex-1 bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-lg">
-                            Aplicar
-                        </button>
-                        <button id="clearFilterBtn" class="flex-1 bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-lg hover:bg-gray-400 transition-colors shadow-lg">
-                            Limpar Filtro
-                        </button>
-                    </div>
-                </div>
-
-                <div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-2xl font-bold text-gray-900">Resumo Financeiro</h3>
-                        <div id="saldo-total-dashboard" class="font-bold text-3xl text-gray-700">A carregar...</div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Visão Geral de Entradas e Saídas</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                        <div class="p-4 rounded-xl border-l-4 border-green-500 bg-green-50">
-                            <h4 class="text-lg font-medium text-green-800">Entradas</h4>
-                            <div id="total-receitas-dashboard" class="font-bold text-2xl text-green-600 mt-1">R$ 0.00</div>
-                        </div>
-                        <div class="p-4 rounded-xl border-l-4 border-red-500 bg-red-50">
-                            <h4 class="text-lg font-medium text-red-800">Saídas</h4>
-                            <div id="total-despesas-dashboard" class="font-bold text-2xl text-red-600 mt-1">R$ 0.00</div>
-                        </div>
-                    </div>
-                    <div class="relative h-64">
-                         <canvas id="balanceChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Últimos Lançamentos</h3>
-                     <div class="flex items-center justify-center py-4 hidden" id="loading-dashboard-container">
-                        <div class="loader"></div>
-                        <span class="ml-2 text-gray-500">A carregar dados...</span>
-                    </div>
-                    <div id="recent-transactions-list" class="space-y-4">
-                        <!-- Lançamentos recentes serão injetados aqui -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Aba 1: Gastos e Entradas -->
-            <div id="content-gastos-entradas" class="tab-content hidden">
-                <div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-2xl font-bold text-gray-900">Resumo Geral</h3>
-                        <div id="saldo-total" class="font-bold text-3xl text-gray-700">A carregar...</div>
-                    </div>
-                </div>
-
-                <div class="grid md:grid-cols-2 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-green-400">
-                        <h3 class="text-xl font-semibold text-green-800 mb-4">Adicionar Entrada</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label for="receita-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
-                                <input type="text" id="receita-descricao" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
-                            </div>
-                            <div>
-                                <label for="receita-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
-                                <input type="number" id="receita-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
-                            </div>
-                            <button id="add-receita-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
-                                Adicionar Entrada
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-red-400">
-                        <h3 class="text-xl font-semibold text-red-800 mb-4">Adicionar Saída</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label for="despesa-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
-                                <input type="text" id="despesa-descricao" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
-                            </div>
-                            <div>
-                                <label for="despesa-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
-                                <input type="number" id="despesa-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
-                            </div>
-                            <button id="add-despesa-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-300">
-                                Adicionar Saída
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Lançamentos Recentes</h3>
-                    <div class="flex items-center justify-center py-4 hidden" id="loading-container">
-                        <div class="loader"></div>
-                        <span class="ml-2 text-gray-500">A carregar dados...</span>
-                    </div>
-                    <div id="data-list" class="space-y-4">
-                    </div>
-                    <button id="export-btn" class="w-full mt-6 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
-                        Exportar para Planilha
-                    </button>
-                </div>
-            </div>
-
-            <!-- Aba 2: Serviços e Planos -->
-            <div id="content-servicos-planos" class="tab-content hidden">
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Catálogo de Serviços e Planos</h3>
-                    <div class="flex items-center justify-center py-4 hidden" id="loading-services-container">
-                        <div class="loader"></div>
-                        <span class="ml-2 text-gray-500">A carregar serviços...</span>
-                    </div>
-                    <div id="services-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Aba 3: Agenda -->
-            <div id="content-agenda" class="tab-content hidden">
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Agenda de Compromissos</h3>
-                    <p class="text-center text-gray-500 mb-4">Funcionalidade da Agenda em desenvolvimento. Aqui você poderá visualizar seus compromissos por mês, semana ou dia.</p>
-                    <div id="calendar-view" class="bg-gray-100 p-4 rounded-lg shadow-inner">
-                        <div class="flex justify-between items-center mb-4">
-                            <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-200">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                            </button>
-                            <h4 class="text-lg font-bold text-center" id="current-month-year"></h4>
-                            <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-200">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                            </button>
-                        </div>
-                        <div class="grid grid-cols-7 text-center font-semibold text-sm text-gray-600 mb-2">
-                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-                        </div>
-                        <div id="calendar-days" class="grid grid-cols-7 gap-1">
-                        </div>
-                    </div>
-                    <button id="add-event-btn" class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Adicionar Evento</button>
-                    <!-- Modal para adicionar evento -->
-                    <div id="add-event-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
-                        <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm">
-                            <h3 class="text-xl font-bold mb-4">Adicionar Novo Evento</h3>
-                            <div class="space-y-4">
-                                <input type="text" id="event-title" placeholder="Título do Evento" class="w-full p-3 border rounded-lg">
-                                <input type="date" id="event-date" class="w-full p-3 border rounded-lg">
-                                <input type="time" id="event-time" class="w-full p-3 border rounded-lg">
-                                <input type="text" id="event-location" placeholder="Local" class="w-full p-3 border rounded-lg">
-                                <select id="event-service-type" class="w-full p-3 border rounded-lg">
-                                    <option value="">-- Tipo de Serviço --</option>
-                                    <option value="Plano Básico">Plano Básico</option>
-                                    <option value="Plano Intermediário">Plano Intermediário</option>
-                                    <option value="Plano Premium">Plano Premium</option>
-                                    <option value="Serviço Avulso">Serviço Avulso</option>
-                                </select>
-                            </div>
-                            <div class="mt-6 flex justify-end space-x-2">
-                                <button id="save-event-btn" class="py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-300">Salvar</button>
-                                <button id="cancel-event-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Modal para visualizar eventos -->
-                    <div id="view-events-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
-                        <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-md">
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 id="view-events-date" class="text-xl font-bold"></h3>
-                                <button id="close-events-modal-btn" class="p-2 rounded-full hover:bg-gray-200">
-                                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                </button>
-                            </div>
-                            <div id="events-list" class="space-y-4 max-h-96 overflow-y-auto">
-                                <!-- Lista de eventos será injetada aqui -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Aba 4: Controle de Serviços -->
-            <div id="content-controle-servicos" class="tab-content hidden">
-                <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Controle de Status dos Serviços</h3>
-                    <div class="flex items-center justify-center py-4 hidden" id="loading-service-control-container">
-                        <div class="loader"></div>
-                        <span class="ml-2 text-gray-500">A carregar serviços...</span>
-                    </div>
-                    <div id="service-control-list" class="space-y-4">
-                        <!-- Lista de serviços dinâmicos será injetada aqui -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Modal para Iniciar Serviço -->
-            <div id="add-job-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
-                <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm">
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Iniciar Novo Serviço</h3>
-                    <div class="space-y-4">
-                        <div id="job-modal-service-name" class="font-medium text-gray-700"></div>
-                        <div>
-                            <label for="job-description" class="block text-sm font-medium text-gray-700">Nome do Job/Cliente</label>
-                            <input type="text" id="job-description" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                        </div>
-                    </div>
-                    <div class="flex justify-end space-x-2 mt-6">
-                        <button id="cancel-job-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
-                        <button id="save-job-btn" class="py-2 px-4 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-300">Salvar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sidebar Menu -->
-    <nav id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white p-6 transform -translate-x-full transition-transform duration-300 ease-in-out">
-        <div class="flex items-center justify-between mb-8">
-            <div class="flex items-center space-x-2">
-                <div class="vux-logo h-12 w-12 rounded-full text-lg shadow-md">
-                    VUX.
-                </div>
-                <span class="text-xl font-bold">Menu</span>
-            </div>
-            <button id="close-menu-btn" class="p-2 rounded-lg text-white hover:bg-gray-700 transition duration-300">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-        </div>
-        <div class="space-y-2">
-            <button class="sidebar-btn w-full text-left py-3 px-4 rounded-lg text-gray-400 hover:bg-gray-700 transition duration-300 active" data-tab="dashboard">
-                Dashboard
-            </button>
-            <button class="sidebar-btn w-full text-left py-3 px-4 rounded-lg text-gray-400 hover:bg-gray-700 transition duration-300" data-tab="gastos-entradas">
-                Financeiro
-            </button>
-            <button class="sidebar-btn w-full text-left py-3 px-4 rounded-lg text-gray-400 hover:bg-gray-700 transition duration-300" data-tab="servicos-planos">
-                Catálogo de Serviços
-            </button>
-            <button class="sidebar-btn w-full text-left py-3 px-4 rounded-lg text-gray-400 hover:bg-gray-700 transition duration-300" data-tab="controle-servicos">
-                Controle de Serviços
-            </button>
-            <button class="sidebar-btn w-full text-left py-3 px-4 rounded-lg text-gray-400 hover:bg-gray-700 transition duration-300" data-tab="agenda">
-                Agenda
-            </button>
-        </div>
-    </nav>
-    
-    <script>
-        // Importa as funções do Supabase
-        const { createClient } = supabase;
-
-        // Configurações do ambiente (chave de acesso e URL do projeto)
-        const supabaseUrl = 'https://mpcjuzvbzoaonhjlclmg.supabase.co';
-        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wY2p1enZiem9hb25oamxjbG1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDg4OTUsImV4cCI6MjA3MTEyNDg5NX0.Pz2HuzmfY9czU_ckXzKi2flNAS71p1sqpWBxBb2b4sI';
-
-        // Inicializa o cliente Supabase
-        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
-        // Referências aos elementos da interface
-        const authView = document.getElementById('auth-view');
-        const dashboardView = document.getElementById('dashboard-view');
-        const loginBtn = document.getElementById('login-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const authErrorMessage = document.getElementById('auth-error-message');
-        const messageBox = document.getElementById('message-box');
-        const menuBtn = document.getElementById('menu-btn');
-        const closeMenuBtn = document.getElementById('close-menu-btn');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarBtns = document.querySelectorAll('.sidebar-btn');
-        const tabContents = document.querySelectorAll('.tab-content');
-
-        // Referências para o dashboard
-        const saldoTotalDashboard = document.getElementById('saldo-total-dashboard');
-        const totalReceitasDashboard = document.getElementById('total-receitas-dashboard');
-        const totalDespesasDashboard = document.getElementById('total-despesas-dashboard');
-        const recentTransactionsList = document.getElementById('recent-transactions-list');
-        const loadingDashboardContainer = document.getElementById('loading-dashboard-container');
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const applyFilterBtn = document.getElementById('applyFilterBtn');
-        const clearFilterBtn = document.getElementById('clearFilterBtn');
-
-        // Referências para a seção de gastos/entradas
-        const saldoTotal = document.getElementById('saldo-total');
-        const receitaDescricaoInput = document.getElementById('receita-descricao');
-        const receitaValorInput = document.getElementById('receita-valor');
-        const addReceitaBtn = document.getElementById('add-receita-btn');
-        const despesaDescricaoInput = document.getElementById('despesa-descricao');
-        const despesaValorInput = document.getElementById('despesa-valor');
-        const addDespesaBtn = document.getElementById('add-despesa-btn');
-        const dataList = document.getElementById('data-list');
-        const loadingContainer = document.getElementById('loading-container');
-        const exportBtn = document.getElementById('export-btn');
-
-        // Referências para serviços e planos
-        const servicesList = document.getElementById('services-list');
-        const loadingServicesContainer = document.getElementById('loading-services-container');
-        const selectedServiceForJob = { id: null, name: null };
-        const addJobModal = document.getElementById('add-job-modal');
-        const jobModalServiceName = document.getElementById('job-modal-service-name');
-        const jobDescriptionInput = document.getElementById('job-description');
-        const saveJobBtn = document.getElementById('save-job-btn');
-        const cancelJobBtn = document.getElementById('cancel-job-btn');
-        
-        // Referências para agenda
-        const addEventBtn = document.getElementById('add-event-btn');
-        const addEventModal = document.getElementById('add-event-modal');
-        const saveEventBtn = document.getElementById('save-event-btn');
-        const cancelEventBtn = document.getElementById('cancel-event-btn');
-        const eventTitleInput = document.getElementById('event-title');
-        const eventDateInput = document.getElementById('event-date');
-        const eventTimeInput = document.getElementById('event-time');
-        const eventLocationInput = document.getElementById('event-location');
-        const eventServiceTypeSelect = document.getElementById('event-service-type');
-        const calendarDaysContainer = document.getElementById('calendar-days');
-        const currentMonthYear = document.getElementById('current-month-year');
-        const prevMonthBtn = document.getElementById('prev-month-btn');
-        const nextMonthBtn = document.getElementById('next-month-btn');
-        const viewEventsModal = document.getElementById('view-events-modal');
-        const viewEventsDate = document.getElementById('view-events-date');
-        const eventsListContainer = document.getElementById('events-list');
-        const closeEventsModalBtn = document.getElementById('close-events-modal-btn');
-        
-        // Referências para controle de serviços
-        const loadingServiceControlContainer = document.getElementById('loading-service-control-container');
-        const serviceControlList = document.getElementById('service-control-list');
-
-        // Variáveis de estado
-        let currentMonth = new Date().getMonth();
-        let currentYear = new Date().getFullYear();
-        let allEvents = [];
-        let balanceChart = null;
-
-        // Funções de utilidade
-        function showMessage(message, isError = false) {
-            const el = document.getElementById('message-box');
-            el.textContent = message;
-            el.className = `message-box ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'} show`;
-            setTimeout(() => {
-                el.classList.remove('show');
-            }, 3000);
-        }
-
-        function formatCurrency(value) {
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-        }
-
-        function showLoading(element, show) {
-            if (show) {
-                element.classList.remove('hidden');
-            } else {
-                element.classList.add('hidden');
-            }
-        }
-
-        function toggleSidebar() {
-            sidebar.classList.toggle('-translate-x-full');
-        }
-
-        function switchTab(tabName) {
-            tabContents.forEach(tab => tab.classList.add('hidden'));
-            document.getElementById(`content-${tabName}`).classList.remove('hidden');
-            sidebarBtns.forEach(btn => btn.classList.remove('active'));
-            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-            toggleSidebar();
-            
-            // Força a recarga dos dados quando a aba é ativada
-            if (tabName === 'gastos-entradas') {
-                fetchTransactions();
-            } else if (tabName === 'servicos-planos') {
-                fetchServices();
-            } else if (tabName === 'controle-servicos') {
-                fetchServiceControlList();
-            } else if (tabName === 'agenda') {
-                renderCalendar();
-            }
-        }
-
-        // --- Supabase / Lógica de Dados ---
-        
-        async function handleLogin() {
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            
-            // Assegura que os campos não estão vazios
-            if (!email || !password) {
-                authErrorMessage.textContent = 'Por favor, preencha todos os campos.';
-                return;
-            }
-
-            try {
-                // Autentica o usuário com email e senha
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                
-                if (error) {
-                    authErrorMessage.textContent = 'Credenciais inválidas. Tente novamente.';
-                    return;
-                }
-
-                // Se o login foi bem-sucedido
-                authView.classList.add('hidden');
-                dashboardView.classList.remove('hidden');
-                showMessage('Login realizado com sucesso!');
-                
-                // Carrega os dados iniciais
-                fetchDashboardData();
-                fetchTransactions();
-                fetchServices();
-                fetchServiceControlList();
-                fetchEvents();
-                
-            } catch (err) {
-                authErrorMessage.textContent = 'Erro inesperado. Tente novamente.';
-                console.error(err);
-            }
-        }
-
-        async function logout() {
-            try {
-                const { error } = await supabaseClient.auth.signOut();
-                if (error) throw error;
-                showMessage('Você foi desconectado.');
-                authView.classList.remove('hidden');
-                dashboardView.classList.add('hidden');
-            } catch (err) {
-                console.error('Erro ao fazer logout:', err.message);
-                showMessage('Erro ao fazer logout.', true);
-            }
-        }
-
-        // Função para adicionar uma receita ou despesa
-        async function addTransaction(type, description, value) {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                showMessage('Usuário não autenticado.', true);
-                return;
-            }
-            if (!description || !value) {
-                showMessage('Descrição e valor são obrigatórios.', true);
-                return;
-            }
-            try {
-                const { error } = await supabaseClient.from('transactions').insert([
-                    {
-                        user_id: user.id,
-                        description: description,
-                        amount: parseFloat(value),
-                        type: type,
-                        created_at: new Date().toISOString()
-                    }
-                ]);
-                if (error) throw error;
-                showMessage(`Lançamento de ${type} adicionado com sucesso.`);
-                // Limpar os campos
-                if (type === 'receita') {
-                    receitaDescricaoInput.value = '';
-                    receitaValorInput.value = '';
-                } else {
-                    despesaDescricaoInput.value = '';
-                    despesaValorInput.value = '';
-                }
-                fetchTransactions();
-                fetchDashboardData();
-            } catch (err) {
-                console.error('Erro ao adicionar transação:', err.message);
-                showMessage('Erro ao adicionar lançamento.', true);
-            }
-        }
-
-        // Função para buscar e exibir os lançamentos
-        async function fetchTransactions() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-            showLoading(loadingContainer, true);
-            try {
-                const { data: transactions, error } = await supabaseClient
-                    .from('transactions')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false });
-
-                if (error) throw error;
-
-                // Calcular o saldo total e exibir
-                const totalReceitas = transactions.filter(t => t.type === 'receita').reduce((sum, t) => sum + t.amount, 0);
-                const totalDespesas = transactions.filter(t => t.type === 'despesa').reduce((sum, t) => sum + t.amount, 0);
-                const saldo = totalReceitas - totalDespesas;
-                saldoTotal.textContent = formatCurrency(saldo);
-
-                // Exibir a lista de lançamentos
-                dataList.innerHTML = '';
-                if (transactions.length === 0) {
-                    dataList.innerHTML = '<p class="text-center text-gray-500">Nenhum lançamento encontrado.</p>';
-                } else {
-                    transactions.forEach(t => {
-                        const isReceita = t.type === 'receita';
-                        const item = document.createElement('div');
-                        item.className = `p-4 rounded-xl border-l-4 ${isReceita ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} flex justify-between items-center`;
-                        item.innerHTML = `
-                            <div>
-                                <h4 class="text-lg font-medium ${isReceita ? 'text-green-800' : 'text-red-800'}">${t.description}</h4>
-                                <span class="text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</span>
-                            </div>
-                            <div class="font-bold text-lg ${isReceita ? 'text-green-600' : 'text-red-600'}">${formatCurrency(t.amount)}</div>
-                            <button class="delete-btn text-gray-400 hover:text-red-600 transition-colors" data-id="${t.id}">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                            </button>
-                        `;
-                        dataList.appendChild(item);
-                    });
-                    document.querySelectorAll('.delete-btn').forEach(button => {
-                        button.addEventListener('click', async (e) => {
-                             if (confirm('Tem certeza que deseja deletar este lan\u00e7amento?')) {
-                                const transactionId = e.currentTarget.dataset.id;
-                                await deleteTransaction(transactionId);
-                            }
-                        });
-                    });
-                }
-            } catch (err) {
-                console.error('Erro ao buscar transações:', err.message);
-                showMessage('Erro ao carregar lançamentos.', true);
-            } finally {
-                showLoading(loadingContainer, false);
-            }
-        }
-
-        // Função para deletar uma transação
-        async function deleteTransaction(id) {
-            try {
-                const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
-                if (error) throw error;
-                showMessage('Lançamento excluído com sucesso.');
-                fetchTransactions();
-                fetchDashboardData();
-            } catch (err) {
-                console.error('Erro ao deletar transação:', err.message);
-                showMessage('Erro ao excluir lançamento.', true);
-            }
-        }
-
-        // Função para buscar dados para o dashboard
-        async function fetchDashboardData(startDate = null, endDate = null) {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-            showLoading(loadingDashboardContainer, true);
-
-            try {
-                let query = supabaseClient.from('transactions').select('*').eq('user_id', user.id);
-
-                if (startDate) {
-                    query = query.gte('created_at', startDate);
-                }
-                if (endDate) {
-                    query = query.lte('created_at', endDate + 'T23:59:59.999Z');
-                }
-
-                const { data: transactions, error } = await query.order('created_at', { ascending: false });
-                if (error) throw error;
-
-                const totalReceitas = transactions.filter(t => t.type === 'receita').reduce((sum, t) => sum + t.amount, 0);
-                const totalDespesas = transactions.filter(t => t.type === 'despesa').reduce((sum, t) => sum + t.amount, 0);
-                const saldo = totalReceitas - totalDespesas;
-
-                saldoTotalDashboard.textContent = formatCurrency(saldo);
-                totalReceitasDashboard.textContent = formatCurrency(totalReceitas);
-                totalDespesasDashboard.textContent = formatCurrency(totalDespesas);
-
-                // Exibir os últimos 5 lançamentos no dashboard
-                recentTransactionsList.innerHTML = '';
-                const recent = transactions.slice(0, 5);
-                if (recent.length === 0) {
-                    recentTransactionsList.innerHTML = '<p class="text-center text-gray-500">Nenhum lançamento encontrado.</p>';
-                } else {
-                    recent.forEach(t => {
-                        const isReceita = t.type === 'receita';
-                        const item = document.createElement('div');
-                        item.className = `p-4 rounded-xl border-l-4 ${isReceita ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} flex justify-between items-center`;
-                        item.innerHTML = `
-                            <div>
-                                <h4 class="text-lg font-medium ${isReceita ? 'text-green-800' : 'text-red-800'}">${t.description}</h4>
-                                <span class="text-sm text-gray-500">${new Date(t.created_at).toLocaleDateString()}</span>
-                            </div>
-                            <div class="font-bold text-lg ${isReceita ? 'text-green-600' : 'text-red-600'}">${formatCurrency(t.amount)}</div>
-                        `;
-                        recentTransactionsList.appendChild(item);
-                    });
-                }
-                
-                updateBalanceChart(transactions);
-
-            } catch (err) {
-                console.error('Erro ao buscar dados do dashboard:', err.message);
-                showMessage('Erro ao carregar dados do dashboard.', true);
-            } finally {
-                showLoading(loadingDashboardContainer, false);
-            }
-        }
-
-        // Função para atualizar o gráfico de saldo
-        function updateBalanceChart(transactions) {
-            const chartData = {};
-            transactions.forEach(t => {
-                const date = new Date(t.created_at).toLocaleDateString();
-                if (!chartData[date]) {
-                    chartData[date] = 0;
-                }
-                chartData[date] += (t.type === 'receita' ? t.amount : -t.amount);
-            });
-
-            const labels = Object.keys(chartData).sort((a, b) => new Date(a) - new Date(b));
-            const dataPoints = labels.map(label => chartData[label]);
-            let runningBalance = 0;
-            const cumulativeData = dataPoints.map(point => {
-                runningBalance += point;
-                return runningBalance;
-            });
-            
-            const ctx = document.getElementById('balanceChart').getContext('2d');
-            if (balanceChart) {
-                balanceChart.destroy();
-            }
-            balanceChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Saldo Acumulado',
-                        data: cumulativeData,
-                        borderColor: '#4b3e34',
-                        tension: 0.1,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        }
-        
-        // Função para buscar e exibir os serviços
-        async function fetchServices() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-            showLoading(loadingServicesContainer, true);
-            try {
-                const { data: services, error } = await supabaseClient
-                    .from('services')
-                    .select('*')
-                    .eq('user_id', user.id);
-                if (error) throw error;
-
-                servicesList.innerHTML = '';
-                if (services.length === 0) {
-                    servicesList.innerHTML = '<p class="text-center text-gray-500 col-span-2">Nenhum serviço cadastrado.</p>';
-                } else {
-                    services.forEach(service => {
-                        const item = document.createElement('div');
-                        item.className = 'bg-white p-6 rounded-2xl shadow-lg border-l-4 border-indigo-400 space-y-2 relative';
-                        item.innerHTML = `
-                            <div class="flex items-center justify-between">
-                                <h4 class="text-xl font-bold text-gray-900">${service.name}</h4>
-                                <span class="text-lg font-semibold text-indigo-600">${formatCurrency(service.price)}</span>
-                            </div>
-                            <p class="text-gray-600">${service.description}</p>
-                            <span class="inline-block bg-gray-200 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">${service.type}</span>
-                            <div class="flex space-x-2 mt-4">
-                                <button class="start-job-btn py-2 px-4 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors" data-id="${service.id}" data-name="${service.name}">
-                                    Iniciar Serviço
-                                </button>
-                                <button class="delete-service-btn py-2 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors" data-id="${service.id}">
-                                    Deletar
-                                </button>
-                            </div>
-                        `;
-                        servicesList.appendChild(item);
-                    });
-                    
-                    document.querySelectorAll('.start-job-btn').forEach(btn => {
-                        btn.addEventListener('click', () => {
-                            selectedServiceForJob.id = btn.dataset.id;
-                            selectedServiceForJob.name = btn.dataset.name;
-                            jobModalServiceName.textContent = `Serviço: ${selectedServiceForJob.name}`;
-                            addJobModal.classList.remove('hidden');
-                        });
-                    });
-                    document.querySelectorAll('.delete-service-btn').forEach(btn => {
-                        btn.addEventListener('click', async (e) => {
-                             if (confirm('Tem certeza que deseja deletar este serviço?')) {
-                                await deleteService(e.currentTarget.dataset.id);
-                            }
-                        });
-                    });
-                }
-            } catch (err) {
-                console.error('Erro ao buscar serviços:', err.message);
-                showMessage('Erro ao carregar serviços.', true);
-            } finally {
-                showLoading(loadingServicesContainer, false);
-            }
-        }
-        
-        // Função para deletar um serviço
-        async function deleteService(serviceId) {
-            try {
-                const { error } = await supabaseClient.from('services').delete().eq('id', serviceId);
-                if (error) throw error;
-                showMessage('Serviço deletado com sucesso!');
-                fetchServices();
-            } catch (err) {
-                console.error('Erro ao deletar serviço:', err.message);
-                showMessage('Erro ao deletar serviço.', true);
-            }
-        }
-
-        // Função para adicionar um novo job (instância de serviço)
-        async function addServiceJob() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                showMessage('Usuário não autenticado.', true);
-                return;
-            }
-            const description = jobDescriptionInput.value;
-            if (!selectedServiceForJob.id || !description) {
-                showMessage('Selecione um serviço e adicione uma descrição.', true);
-                return;
-            }
-            try {
-                const { data: serviceData, error: serviceError } = await supabaseClient
-                    .from('services')
-                    .select('*')
-                    .eq('id', selectedServiceForJob.id)
-                    .single();
-                
-                if (serviceError) throw serviceError;
-                
-                const { error } = await supabaseClient.from('service_jobs').insert([
-                    {
-                        user_id: user.id,
-                        service_id: selectedServiceForJob.id,
-                        service_name: serviceData.name,
-                        service_price: serviceData.price,
-                        description: description,
-                        status: 'Agendado', // Status inicial conforme a especificação
-                        start_date: new Date().toISOString()
-                    }
-                ]);
-                if (error) throw error;
-                
-                showMessage('Serviço iniciado com sucesso!');
-                addJobModal.classList.add('hidden');
-                jobDescriptionInput.value = '';
-                selectedServiceForJob.id = null;
-                selectedServiceForJob.name = null;
-                fetchServiceControlList();
-            } catch (err) {
-                console.error('Erro ao iniciar serviço:', err.message);
-                showMessage('Erro ao iniciar serviço.', true);
-            }
-        }
-        
-        // Função para buscar e exibir a lista de controle de serviços
-        async function fetchServiceControlList() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-            showLoading(loadingServiceControlContainer, true);
-            try {
-                const { data: jobs, error } = await supabaseClient
-                    .from('service_jobs')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('start_date', { ascending: false });
-
-                if (error) throw error;
-
-                serviceControlList.innerHTML = '';
-                if (jobs.length === 0) {
-                    serviceControlList.innerHTML = '<p class="text-center text-gray-500">Nenhum serviço em andamento.</p>';
-                } else {
-                    jobs.forEach(job => {
-                        const item = document.createElement('div');
-                        let statusClass = '';
-                        if (job.status === 'Agendado') statusClass = 'status-agendado';
-                        else if (job.status === 'Em andamento') statusClass = 'status-em-andamento';
-                        else if (job.status === 'Enviado para o cliente') statusClass = 'status-enviado-para-o-cliente';
-                        else if (job.status === 'Aprovado pelo cliente') statusClass = 'status-aprovado-pelo-cliente';
-                        else if (job.status === 'Concluído/Entregue') statusClass = 'status-concluido-entregue';
-                        
-                        item.className = 'bg-gray-50 p-6 rounded-2xl shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0';
-                        item.innerHTML = `
-                            <div>
-                                <h4 class="text-lg font-bold text-gray-900">${job.description}</h4>
-                                <p class="text-sm text-gray-600">Serviço: ${job.service_name}</p>
-                                <p class="text-sm text-gray-600">Início: ${new Date(job.start_date).toLocaleDateString()}</p>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-sm font-semibold text-white px-3 py-1 rounded-full ${statusClass}">${job.status}</span>
-                                <div class="relative group">
-                                    <button class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-300">
-                                        Mudar Status
-                                    </button>
-                                    <div class="absolute right-0 mt-2 w-56 p-2 rounded-lg shadow-xl bg-white hidden group-hover:block z-10">
-                                        <button class="w-full text-left p-2 rounded-lg hover:bg-gray-100 transition-colors status-btn" data-id="${job.id}" data-status="Em andamento">Em andamento</button>
-                                        <button class="w-full text-left p-2 rounded-lg hover:bg-gray-100 transition-colors status-btn" data-id="${job.id}" data-status="Enviado para o cliente">Enviado para o cliente</button>
-                                        <button class="w-full text-left p-2 rounded-lg hover:bg-gray-100 transition-colors status-btn" data-id="${job.id}" data-status="Aprovado pelo cliente">Aprovado pelo cliente</button>
-                                        <button class="w-full text-left p-2 rounded-lg hover:bg-gray-100 transition-colors status-btn" data-id="${job.id}" data-status="Concluído/Entregue">Concluído/Entregue</button>
-                                    </div>
-                                </div>
-                                <button class="delete-job-btn py-2 px-4 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors" data-id="${job.id}">
-                                    Deletar
-                                </button>
-                            </div>
-                        `;
-                        serviceControlList.appendChild(item);
-                    });
-                    
-                    document.querySelectorAll('.status-btn').forEach(btn => {
-                        btn.addEventListener('click', async (e) => {
-                            const jobId = e.currentTarget.dataset.id;
-                            const newStatus = e.currentTarget.dataset.status;
-                            await updateJobStatus(jobId, newStatus);
-                        });
-                    });
-                    
-                    document.querySelectorAll('.delete-job-btn').forEach(btn => {
-                        btn.addEventListener('click', async (e) => {
-                            const jobId = e.currentTarget.dataset.id;
-                             if (confirm('Tem certeza que deseja deletar este servi\u00e7o?')) {
-                                await deleteJob(jobId);
-                            }
-                        });
-                    });
-                }
-            } catch (err) {
-                console.error('Erro ao buscar lista de serviços:', err.message);
-                showMessage('Erro ao carregar a lista de serviços.', true);
-            } finally {
-                showLoading(loadingServiceControlContainer, false);
-            }
-        }
-        
-        // Função para atualizar o status de um job
-        async function updateJobStatus(jobId, status) {
-            try {
-                const { error } = await supabaseClient.from('service_jobs').update({ status: status }).eq('id', jobId);
-                if (error) throw error;
-                showMessage('Status do serviço atualizado com sucesso!');
-                fetchServiceControlList();
-            } catch (err) {
-                console.error('Erro ao atualizar status do serviço:', err.message);
-                showMessage('Erro ao atualizar status do serviço.', true);
-            }
-        }
-        
-        // Função para deletar um job
-        async function deleteJob(jobId) {
-            try {
-                const { error } = await supabaseClient.from('service_jobs').delete().eq('id', jobId);
-                if (error) throw error;
-                showMessage('Serviço deletado com sucesso!');
-                fetchServiceControlList();
-            } catch (err) {
-                console.error('Erro ao deletar serviço:', err.message);
-                showMessage('Erro ao deletar serviço.', true);
-            }
-        }
-
-        // Função para buscar todos os eventos
-        async function fetchEvents() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) return;
-            try {
-                const { data: events, error } = await supabaseClient
-                    .from('agenda')
-                    .select('*')
-                    .eq('user_id', user.id);
-                if (error) throw error;
-                allEvents = events;
-                renderCalendar();
-            } catch (err) {
-                console.error('Erro ao buscar eventos:', err.message);
-            }
-        }
-
-        // Função para renderizar o calendário
-        function renderCalendar() {
-            const date = new Date(currentYear, currentMonth);
-            currentMonthYear.textContent = date.toLocaleString('pt-br', { month: 'long', year: 'numeric' });
-
-            const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-            const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-            calendarDaysContainer.innerHTML = '';
-            
-            // Dias da semana vazios
-            for (let i = 0; i < firstDayOfMonth; i++) {
-                const emptyDay = document.createElement('span');
-                emptyDay.className = 'p-2 text-center text-gray-300';
-                calendarDaysContainer.appendChild(emptyDay);
-            }
-
-            // Dias do mês
-            for (let day = 1; day <= lastDayOfMonth; day++) {
-                const dayEl = document.createElement('span');
-                dayEl.className = 'p-2 text-center rounded-full transition-colors cursor-pointer hover:bg-indigo-200';
-                dayEl.textContent = day;
-                
-                const fullDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                dayEl.dataset.date = fullDate;
-                
-                // Adiciona a classe se houver evento no dia
-                const eventsOnThisDay = allEvents.filter(event => event.date === fullDate);
-                if (eventsOnThisDay.length > 0) {
-                    dayEl.classList.add('day-with-event');
-                    dayEl.addEventListener('click', () => {
-                        viewEventsModal.classList.remove('hidden');
-                        viewEventsDate.textContent = `Eventos em ${day}/${currentMonth + 1}/${currentYear}`;
-                        eventsListContainer.innerHTML = '';
-                        eventsOnThisDay.forEach(event => {
-                            const eventItem = document.createElement('div');
-                            eventItem.className = 'bg-gray-100 p-4 rounded-lg shadow-sm';
-                            eventItem.innerHTML = `
-                                <h4 class="font-semibold text-gray-900">${event.title}</h4>
-                                <p class="text-sm text-gray-600">Horário: ${event.time}</p>
-                                <p class="text-sm text-gray-600">Local: ${event.location}</p>
-                                <p class="text-sm text-gray-600">Tipo: ${event.service_type}</p>
-                            `;
-                            eventsListContainer.appendChild(eventItem);
-                        });
-                    });
-                } else {
-                    dayEl.addEventListener('click', () => {
-                        addEventModal.classList.remove('hidden');
-                        eventDateInput.value = fullDate;
-                    });
-                }
-                calendarDaysContainer.appendChild(dayEl);
-            }
-        }
-
-        // Funções para navegação do calendário
-        function prevMonth() {
-            currentMonth--;
-            if (currentMonth < 0) {
-                currentMonth = 11;
-                currentYear--;
-            }
-            fetchEvents();
-        }
-
-        function nextMonth() {
-            currentMonth++;
-            if (currentMonth > 11) {
-                currentMonth = 0;
-                currentYear++;
-            }
-            fetchEvents();
-        }
-
-        // Função para adicionar um novo evento
-        async function addEvent() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                showMessage('Usuário não autenticado.', true);
-                return;
-            }
-            const title = eventTitleInput.value;
-            const date = eventDateInput.value;
-            const time = eventTimeInput.value;
-            const location = eventLocationInput.value;
-            const serviceType = eventServiceTypeSelect.value;
-            
-            if (!title || !date) {
-                showMessage('Título e data são obrigatórios.', true);
-                return;
-            }
-            
-            // Simula um aviso de conflito
-            const eventsOnThisDay = allEvents.filter(event => event.date === date);
-            if (eventsOnThisDay.length > 0) {
-                if (!confirm(`Aviso: Já existe(m) ${eventsOnThisDay.length} evento(s) agendado(s) para esta data. Deseja continuar?`)) {
-                    return;
-                }
-            }
-
-            try {
-                const { error } = await supabaseClient.from('agenda').insert([
-                    {
-                        user_id: user.id,
-                        title: title,
-                        date: date,
-                        time: time,
-                        location: location,
-                        service_type: serviceType
-                    }
-                ]);
-                if (error) throw error;
-                showMessage('Evento salvo com sucesso!');
-                addEventModal.classList.add('hidden');
-                eventTitleInput.value = '';
-                eventTimeInput.value = '';
-                eventLocationInput.value = '';
-                eventServiceTypeSelect.value = '';
-                fetchEvents();
-            } catch (err) {
-                console.error('Erro ao salvar evento:', err.message);
-                showMessage('Erro ao salvar evento.', true);
-            }
-        }
-
-        // Exportar para planilha (CSV)
-        async function exportToCSV() {
-            const { data: { user } } = await supabaseClient.auth.getUser();
-            if (!user) {
-                showMessage('Usuário não autenticado.', true);
-                return;
-            }
-            try {
-                const { data: transactions, error } = await supabaseClient
-                    .from('transactions')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false });
-
-                if (error) throw error;
-
-                if (transactions.length === 0) {
-                    showMessage('Nenhum dado para exportar.', true);
-                    return;
-                }
-
-                const csvRows = [];
-                // Headers
-                const headers = Object.keys(transactions[0]).filter(h => h !== 'user_id');
-                csvRows.push(headers.join(','));
-
-                // Data
-                for (const row of transactions) {
-                    const values = headers.map(header => {
-                        const val = row[header];
-                        return `"${val}"`;
-                    });
-                    csvRows.push(values.join(','));
-                }
-
-                const csvString = csvRows.join('\n');
-                const blob = new Blob([csvString], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.setAttribute('hidden', '');
-                a.setAttribute('href', url);
-                a.setAttribute('download', 'lancamentos.csv');
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                showMessage('Dados exportados com sucesso!');
-            } catch (err) {
-                console.error('Erro ao exportar dados:', err.message);
-                showMessage('Erro ao exportar dados.', true);
-            }
-        }
-
-        // --- Event Listeners ---
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            // Verifica o estado da autenticação ao carregar a página
-            supabaseClient.auth.onAuthStateChange((event, session) => {
-                if (session) {
-                    authView.classList.add('hidden');
-                    dashboardView.classList.remove('hidden');
-                    fetchDashboardData();
-                    fetchTransactions();
-                    fetchServices();
-                    fetchServiceControlList();
-                    fetchEvents();
-                } else {
-                    authView.classList.remove('hidden');
-                    dashboardView.classList.add('hidden');
-                }
-            });
-        });
-
-        loginBtn.addEventListener('click', handleLogin);
-        logoutBtn.addEventListener('click', logout);
-        menuBtn.addEventListener('click', toggleSidebar);
-        closeMenuBtn.addEventListener('click', toggleSidebar);
-
-        sidebarBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const tab = e.target.dataset.tab;
-                switchTab(tab);
-            });
-        });
-
-        addReceitaBtn.addEventListener('click', () => {
-            const description = receitaDescricaoInput.value;
-            const value = receitaValorInput.value;
-            addTransaction('receita', description, value);
-        });
-
-        addDespesaBtn.addEventListener('click', () => {
-            const description = despesaDescricaoInput.value;
-            const value = despesaValorInput.value;
-            addTransaction('despesa', description, value);
-        });
-
-        saveJobBtn.addEventListener('click', addServiceJob);
-        cancelJobBtn.addEventListener('click', () => {
-            addJobModal.classList.add('hidden');
-            selectedServiceForJob.id = null;
-            selectedServiceForJob.name = null;
-        });
-
-        addEventBtn.addEventListener('click', () => {
-            addEventModal.classList.remove('hidden');
-            eventDateInput.value = '';
-        });
-
-        cancelEventBtn.addEventListener('click', () => {
-            addEventModal.classList.add('hidden');
-        });
-
-        saveEventBtn.addEventListener('click', addEvent);
-        prevMonthBtn.addEventListener('click', prevMonth);
-        nextMonthBtn.addEventListener('click', nextMonth);
-        closeEventsModalBtn.addEventListener('click', () => {
-            viewEventsModal.classList.add('hidden');
-        });
-
-        applyFilterBtn.addEventListener('click', () => {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-            fetchDashboardData(startDate, endDate);
-        });
-
-        clearFilterBtn.addEventListener('click', () => {
-            startDateInput.value = '';
-            endDateInput.value = '';
-            fetchDashboardData();
-        });
-
-        exportBtn.addEventListener('click', exportToCSV);
-        
-    </script>
+<body class="bg-[#f0f2f5]">
+
+<!-- Mensagem de notificação flutuante -->
+<div id="message-box" class="message-box"></div>
+
+<!-- Layout principal da aplicação -->
+<div class="flex min-h-screen">
+
+<!-- Sidebar de navegação -->
+<nav id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white p-6 transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-auto hidden">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center space-x-2">
+<div class="vux-logo h-12 w-12 rounded-full text-lg shadow-md"> VUX. </div>
+<span class="text-xl font-bold">VUX Control</span>
+</div>
+<button id="close-menu-btn" class="text-gray-400 hover:text-white lg:hidden">
+<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+</svg>
+</button>
+</div>
+<ul class="space-y-4 text-sm font-medium">
+<li><button class="sidebar-btn active w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="dashboard-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-9v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg><span>Dashboard</span></button></li>
+<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="gastos-entradas-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg><span>Finanças</span></button></li>
+<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="servicos-planos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2m-2 4h-4m2 0a2 2 0 002-2V9a2 2 0 00-2-2"></path></svg><span>Catálogo</span></button></li>
+<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="cadastro-servicos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg><span>Cadastrar</span></button></li>
+<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="agenda-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span>Agenda</span></button></li>
+<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="controle-servicos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6a2 2 0 00-2-2H5a2 2 0 00-2 2v13a2 2 0 002 2h4zm-5 0h16a1 1 0 001-1v-8a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1zM9 19a1 1 0 01-1-1v-8a1 1 0 011-1h6a1 1 0 011 1v8a1 1 0 01-1 1H9z"></path></svg><span>Controle</span></button></li>
+</ul>
+</nav>
+
+<!-- Conteúdo principal -->
+<main class="flex-1 p-6 lg:p-10">
+<!-- Header para mobile -->
+<header class="flex justify-between items-center mb-8 lg:hidden">
+<button id="menu-btn" class="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition duration-300 hidden">
+<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+</svg>
+</button>
+<h1 class="text-2xl font-bold text-gray-900">VUX Control</h1>
+<button id="logout-btn-mobile" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300 hidden">
+Sair
+</button>
+</header>
+
+<!-- Autenticação (visível por padrão) -->
+<div id="auth-view" class="flex items-center justify-center min-h-screen">
+<div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md">
+<div class="flex flex-col items-center">
+<div class="vux-logo h-24 w-24 rounded-full mb-6 text-3xl shadow-md">
+VUX.
+</div>
+</div>
+<div class="space-y-4 mt-6">
+<div>
+<label for="username" class="block text-sm font-medium text-gray-700">Utilizador</label>
+<input type="text" id="username" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="Admin">
+</div>
+<div>
+<label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+<input type="password" id="password" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="1234">
+</div>
+<div class="text-center text-red-500 font-medium" id="auth-error-message"></div>
+<button id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-semibold text-white bg-[#4b3e34] hover:bg-[#5b4d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4b3e34] transition duration-300 ease-in-out transform hover:scale-105">
+Entrar
+</button>
+</div>
+</div>
+</div>
+
+<!-- Dashboard View -->
+<div id="dashboard-view" class="tab-content hidden">
+<div class="flex justify-end items-center mb-8 hidden lg:flex">
+<button id="logout-btn-desktop" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+Sair
+</button>
+</div>
+<!-- Seletor de Período -->
+<div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+<h3 class="text-xl font-semibold text-gray-900 mb-4">Filtrar por Período</h3>
+<div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+<div class="flex-1 w-full">
+<label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
+<input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5">
+</div>
+<div class="flex-1 w-full">
+<label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
+<input type="date" id="endDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5">
+</div>
+</div>
+<div class="flex mt-4 space-x-2">
+<button id="applyFilterBtn" class="flex-1 bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-lg">
+Aplicar
+</button>
+<button id="clearFilterBtn" class="flex-1 bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-lg hover:bg-gray-400 transition-colors shadow-lg">
+Limpar Filtro
+</button>
+</div>
+</div>
+
+<div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-2xl font-bold text-gray-900">Resumo Financeiro</h3>
+<div id="saldo-total-dashboard" class="font-bold text-3xl text-gray-700">A carregar...</div>
+</div>
+</div>
+
+<div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+<h3 class="text-xl font-semibold text-gray-900 mb-4">Visão Geral de Entradas e Saídas</h3>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+<div class="p-4 rounded-xl border-l-4 border-green-500 bg-green-50">
+<h4 class="text-lg font-medium text-green-800">Entradas</h4>
+<div id="total-receitas-dashboard" class="font-bold text-2xl text-green-600 mt-1">R$ 0.00</div>
+</div>
+<div class="p-4 rounded-xl border-l-4 border-red-500 bg-red-50">
+<h4 class="text-lg font-medium text-red-800">Saídas</h4>
+<div id="total-despesas-dashboard" class="font-bold text-2xl text-red-600 mt-1">R$ 0.00</div>
+</div>
+</div>
+<div class="relative h-64">
+<canvas id="balanceChart"></canvas>
+</div>
+</div>
+
+<div class="bg-white p-6 rounded-2xl shadow-lg">
+<h3 class="text-xl font-semibold text-gray-900 mb-4">Últimos Lançamentos</h3>
+<div class="flex items-center justify-center py-4 hidden" id="loading-dashboard-container">
+<div class="loader"></div>
+<span class="ml-2 text-gray-500">A carregar dados...</span>
+</div>
+<div id="recent-transactions-list" class="space-y-4">
+</div>
+</div>
+</div>
+
+<!-- Gastos e Entradas View -->
+<div id="gastos-entradas-view" class="tab-content hidden">
+<div class="flex justify-end items-center mb-8 hidden lg:flex">
+<button id="logout-btn-desktop-2" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+Sair
+</button>
+</div>
+<div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-2xl font-bold text-gray-900">Resumo Geral</h3>
+<div id="saldo-total" class="font-bold text-3xl text-gray-700">A carregar...</div>
+</div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6 mb-8">
+<div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-green-400">
+<h3 class="text-xl font-semibold text-green-800 mb-4">Adicionar Entrada</h3>
+<div class="space-y-4">
+<div>
+<label for="receita-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+<input type="text" id="receita-descricao" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+</div>
+<div>
+<label for="receita-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+<input type="number" id="receita-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+</div>
+<button id="add-receita-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
+Adicionar Entrada
+</button>
+</div>
+</div>
+
+<div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-red-400">
+<h3 class="text-xl font-semibold text-red-800 mb-4">Adicionar Saída</h3>
+<div class="space-y-4">
+<div>
+<label for="despesa-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+<input type="text" id="despesa-descricao" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
+</div>
+<div>
+<label for="despesa-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+<input type="number" id="despesa-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
+</div>
+<button id="add-despesa-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-300">
+Adicionar Saída
+</button>
+</div>
+</div>
+</div>
+
+<div class="bg-white p-6 rounded-2xl shadow-lg">
+<h3 class="text-xl font-semibold text-gray-900 mb-4">Lançamentos Recentes</h3>
+<div class="flex items-center justify-center py-4 hidden" id="loading-container">
+<div class="loader"></div>
+<span class="ml-2 text-gray-500">A carregar dados...</span>
+</div>
+<div id="data-list" class="space-y-4">
+</div>
+<button id="export-btn" class="w-full mt-6 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
+Exportar para Planilha
+</button>
+</div>
+</div>
+
+<!-- Serviços e Planos View -->
+<div id="servicos-planos-view" class="tab-content hidden">
+<div class="flex justify-end items-center mb-8 hidden lg:flex">
+<button id="logout-btn-desktop-3" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+Sair
+</button>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-lg">
+<h3 class="text-2xl font-bold text-gray-900 mb-6">Catálogo de Serviços e Planos</h3>
+<div class="flex items-center justify-center py-4 hidden" id="loading-services-container">
+<div class="loader"></div>
+<span class="ml-2 text-gray-500">A carregar serviços...</span>
+</div>
+<div id="services-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+</div>
+</div>
+</div>
+
+<!-- Cadastro de Serviços View -->
+<div id="cadastro-servicos-view" class="tab-content hidden">
+<div class="flex justify-end items-center mb-8 hidden lg:flex">
+<button id="logout-btn-desktop-4" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+Sair
+</button>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-yellow-400">
+<h3 class="text-2xl font-bold text-gray-900 mb-6">Cadastro de Novo Serviço/Plano</h3>
+<div class="space-y-4">
+<div>
+<label for="service-name" class="block text-sm font-medium text-gray-700">Nome do Serviço/Plano</label>
+<input type="text" id="service-name" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
+</div>
+<div>
+<label for="service-description" class="block text-sm font-medium text-gray-700">Descrição</label>
+<textarea id="service-description" rows="3" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500"></textarea>
+</div>
+<div>
+<label for="service-type" class="block text-sm font-medium text-gray-700">Tipo de Serviço</label>
+<select id="service-type" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
+<option value="">-- Selecione o tipo --</option>
+<option value="Plano Básico">Plano Básico</option>
+<option value="Plano Intermediário">Plano Intermediário</option>
+<option value="Plano Premium">Plano Premium</option>
+<option value="Serviço Avulso">Serviço Avulso</option>
+</select>
+</div>
+<div>
+<label for="service-price" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+<input type="number" id="service-price" step="0.01" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
+</div>
+<button id="add-service-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-300">
+Cadastrar Serviço
+</button>
+</div>
+</div>
+</div>
+
+<!-- Agenda View -->
+<div id="agenda-view" class="tab-content hidden">
+<div class="flex justify-end items-center mb-8 hidden lg:flex">
+<button id="logout-btn-desktop-5" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+Sair
+</button>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-lg">
+<h3 class="text-2xl font-bold text-gray-900 mb-6">Agenda de Compromissos</h3>
+<div class="flex items-center justify-center mb-4 space-x-4">
+<button id="prev-month-btn" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+<h4 class="text-lg font-bold text-center" id="current-month-year"></h4>
+<button id="next-month-btn" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+</div>
+<div class="grid grid-cols-7 text-center font-semibold text-sm text-gray-600 mb-2">
+<span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+</div>
+<div id="calendar-days" class="grid grid-cols-7 gap-1">
+</div>
+<div id="events-list" class="mt-6 space-y-4">
+<!-- Eventos do dia selecionado serão injetados aqui -->
+<p id="no-events-message" class="text-gray-500 text-center hidden">Nenhum evento para este dia.</p>
+</div>
+<button id="add-event-btn" class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Adicionar Evento</button>
+</div>
+
+<!-- Modal para adicionar evento -->
+<div id="add-event-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+<div class="relative p-6 border w-full max-w-sm sm:max-w-md shadow-lg rounded-xl bg-white">
+<h3 class="text-xl font-bold mb-4">Adicionar Novo Evento</h3>
+<div class="space-y-4">
+<input type="text" id="event-title" placeholder="Título do Evento" class="w-full p-3 border rounded-lg">
+<input type="date" id="event-date" class="w-full p-3 border rounded-lg">
+<input type="time" id="event-time" class="w-full p-3 border rounded-lg">
+<input type="text" id="event-location" placeholder="Local" class="w-full p-3 border rounded-lg">
+<select id="event-service-type" class="w-full p-3 border rounded-lg">
+<option value="">-- Tipo de Serviço --</option>
+</select>
+</div>
+<div class="mt-6 flex justify-end space-x-2">
+<button id="save-event-btn" class="py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-300">Salvar</button>
+<button id="cancel-event-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Controle de Serviços View -->
+<div id="controle-servicos-view" class="tab-content hidden">
+<div class="flex justify-end items-center mb-8 hidden lg:flex">
+<button id="logout-btn-desktop-6" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+Sair
+</button>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-lg">
+<h3 class="text-2xl font-bold text-gray-900 mb-6">Controle de Status dos Serviços</h3>
+<div class="flex items-center justify-center py-4 hidden" id="loading-service-control-container">
+<div class="loader"></div>
+<span class="ml-2 text-gray-500">A carregar serviços...</span>
+</div>
+<div id="service-control-list" class="space-y-4">
+</div>
+</div>
+</div>
+
+<!-- Modal para iniciar serviço (Job) -->
+<div id="add-job-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+<div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm">
+<h3 class="text-2xl font-bold text-gray-900 mb-4">Iniciar Novo Serviço</h3>
+<div class="space-y-4">
+<div id="job-modal-service-name" class="font-medium text-gray-700 text-lg"></div>
+<div>
+<label for="job-description" class="block text-sm font-medium text-gray-700">Nome do Job/Cliente</label>
+<input type="text" id="job-description" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+</div>
+</div>
+<div class="flex justify-end space-x-2 mt-6">
+<button id="cancel-job-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
+<button id="save-job-btn" class="py-2 px-4 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-300">Salvar</button>
+</div>
+</div>
+</div>
+
+</main>
+</div>
+
+<!-- Script para o Firebase -->
+<script type="module">
+// Importações do Firebase
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"
+import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+
+// Variáveis globais do ambiente Canvas (não alterar)
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+// Inicialização do Firebase
+// Movido para o escopo global para garantir que os objetos estejam disponíveis
+// antes de qualquer chamada de função. Isso resolve os erros de inicialização.
+let app, db, auth, userId;
+try {
+app = initializeApp(firebaseConfig);
+auth = getAuth(app);
+db = getFirestore(app);
+} catch (error) {
+console.error("Erro ao inicializar Firebase:", error);
+document.getElementById('auth-error-message').textContent = 'Erro de configuração. Verifique a chave de API.';
+}
+
+
+// Elementos da UI
+const authView = document.getElementById('auth-view');
+const dashboardView = document.getElementById('dashboard-view');
+const sidebar = document.getElementById('sidebar');
+const menuBtn = document.getElementById('menu-btn');
+const closeMenuBtn = document.getElementById('close-menu-btn');
+const logoutBtns = document.querySelectorAll('[id^="logout-btn-"]');
+const sidebarBtns = document.querySelectorAll('.sidebar-btn');
+const messageBox = document.getElementById('message-box');
+// Módulos da aplicação
+const authModule = {};
+const dashboardModule = {};
+const financeModule = {};
+const servicesModule = {};
+const calendarModule = {};
+
+// Funções utilitárias
+function showMessage(message, isError = false) {
+messageBox.textContent = message;
+messageBox.classList.remove('bg-green-500', 'bg-red-500');
+messageBox.classList.add(isError ? 'bg-red-500' : 'bg-green-500');
+messageBox.classList.add('text-white', 'show');
+setTimeout(() => {
+messageBox.classList.remove('show');
+}, 3000);
+}
+
+function toggleLoader(containerId, show) {
+const loaderContainer = document.getElementById(containerId);
+if (loaderContainer) {
+if (show) {
+loaderContainer.classList.remove('hidden');
+} else {
+loaderContainer.classList.add('hidden');
+}
+}
+}
+
+function formatCurrency(value) {
+return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
+// --- Módulo de Autenticação ---
+authModule.setup = () => {
+// O inicializador do Firebase já foi movido para o escopo global.
+// Aqui, apenas configuramos o listener de estado de autenticação.
+onAuthStateChanged(auth, async (user) => {
+if (user) {
+userId = user.uid;
+authView.classList.add('hidden');
+dashboardView.classList.add('active');
+dashboardView.classList.remove('hidden');
+sidebar.classList.remove('hidden');
+menuBtn.classList.remove('hidden'); // Mostra o menu hambúrguer
+document.getElementById('logout-btn-mobile').classList.remove('hidden');
+showMessage(`Bem-vindo, ${user.displayName || 'Usuário'}!`);
+// Inicia a escuta de todos os módulos
+dashboardModule.init();
+financeModule.init();
+servicesModule.init();
+calendarModule.init();
+
+} else {
+userId = null;
+authView.classList.remove('hidden');
+document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+sidebar.classList.add('hidden');
+menuBtn.classList.add('hidden'); // Esconde o menu hambúrguer
+document.getElementById('logout-btn-mobile').classList.add('hidden');
+}
+});
+};
+
+authModule.handleLogin = async () => {
+const usernameInput = document.getElementById('username').value;
+const passwordInput = document.getElementById('password').value;
+const errorMessage = document.getElementById('auth-error-message');
+errorMessage.textContent = '';
+// Simulação de login, no mundo real, você usaria Firebase Auth com email/senha
+if (usernameInput === "Admin" && passwordInput === "1234") {
+try {
+// Autenticação com token personalizado (requer backend) ou anônima
+if (initialAuthToken) {
+await signInWithCustomToken(auth, initialAuthToken);
+} else {
+await signInAnonymously(auth);
+}
+} catch (error) {
+console.error("Erro de autenticação:", error);
+errorMessage.textContent = 'Falha na autenticação. Tente novamente.';
+}
+} else {
+errorMessage.textContent = 'Usuário ou senha inválidos.';
+}
+};
+
+authModule.handleLogout = async () => {
+try {
+await signOut(auth);
+showMessage('Sessão encerrada com sucesso.', false);
+// Limpa os dados em tela após o logout
+document.getElementById('recent-transactions-list').innerHTML = '';
+document.getElementById('data-list').innerHTML = '';
+document.getElementById('services-list').innerHTML = '';
+document.getElementById('service-control-list').innerHTML = '';
+document.getElementById('events-list').innerHTML = '';
+document.getElementById('saldo-total-dashboard').textContent = 'A carregar...';
+document.getElementById('total-receitas-dashboard').textContent = 'R$ 0.00';
+document.getElementById('total-despesas-dashboard').textContent = 'R$ 0.00';
+document.getElementById('saldo-total').textContent = 'A carregar...';
+
+} catch (error) {
+console.error("Erro ao fazer logout:", error);
+showMessage('Erro ao sair da conta. Tente novamente.', true);
+}
+};
+
+// --- Módulo de Dashboard ---
+dashboardModule.init = () => {
+dashboardModule.fetchDashboardData();
+document.getElementById('applyFilterBtn').addEventListener('click', dashboardModule.handleFilter);
+document.getElementById('clearFilterBtn').addEventListener('click', dashboardModule.handleClearFilter);
+};
+
+dashboardModule.fetchDashboardData = (startDate = null, endDate = null) => {
+if (!userId) return;
+toggleLoader('loading-dashboard-container', true);
+const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+let q = query(transactionsRef);
+
+if (startDate && endDate) {
+const start = new Date(startDate);
+const end = new Date(endDate);
+end.setDate(end.getDate() + 1); // Inclui o dia final
+q = query(transactionsRef, where('timestamp', '>=', start), where('timestamp', '<', end));
+}
+
+onSnapshot(q, (snapshot) => {
+let totalReceitas = 0;
+let totalDespesas = 0;
+let transactions = [];
+
+snapshot.docs.forEach(doc => {
+const data = doc.data();
+transactions.push(data);
+if (data.tipo === 'receita') {
+totalReceitas += data.valor;
+} else {
+totalDespesas += data.valor;
+}
+});
+
+const saldo = totalReceitas - totalDespesas;
+document.getElementById('saldo-total-dashboard').textContent = formatCurrency(saldo);
+document.getElementById('total-receitas-dashboard').textContent = formatCurrency(totalReceitas);
+document.getElementById('total-despesas-dashboard').textContent = formatCurrency(totalDespesas);
+
+// Exibir últimos 5 lançamentos
+const recentTransactions = transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()).slice(0, 5);
+dashboardModule.renderTransactions(recentTransactions);
+
+// Atualiza o gráfico
+dashboardModule.updateChart(transactions);
+toggleLoader('loading-dashboard-container', false);
+}, (error) => {
+console.error("Erro ao buscar dados do dashboard:", error);
+showMessage('Erro ao carregar dados do dashboard.', true);
+toggleLoader('loading-dashboard-container', false);
+});
+};
+
+dashboardModule.renderTransactions = (transactions) => {
+const list = document.getElementById('recent-transactions-list');
+list.innerHTML = '';
+if (transactions.length === 0) {
+list.innerHTML = '<p class="text-gray-500 text-center">Nenhum lançamento encontrado.</p>';
+return;
+}
+
+transactions.forEach(t => {
+const transactionItem = document.createElement('div');
+const isReceita = t.tipo === 'receita';
+transactionItem.className = `p-4 rounded-xl flex justify-between items-center transition duration-300 transform hover:scale-105 ${isReceita ? 'bg-green-100 border-l-4 border-green-500' : 'bg-red-100 border-l-4 border-red-500'}`;
+transactionItem.innerHTML = `
+<div>
+<p class="font-bold text-gray-800">${t.descricao}</p>
+<p class="text-sm text-gray-500">${new Date(t.timestamp.toDate()).toLocaleDateString()}</p>
+</div>
+<span class="font-bold text-lg ${isReceita ? 'text-green-600' : 'text-red-600'}">
+${isReceita ? '+' : '-'} ${formatCurrency(t.valor)}
+</span>
+`;
+list.appendChild(transactionItem);
+});
+};
+
+dashboardModule.updateChart = (transactions) => {
+const ctx = document.getElementById('balanceChart').getContext('2d');
+let balanceChart = Chart.getChart('balanceChart');
+if (balanceChart) {
+balanceChart.destroy();
+}
+
+const dates = Array.from(new Set(transactions.map(t => t.timestamp.toDate().toLocaleDateString()))).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
+const cumulativeBalance = {};
+let currentBalance = 0;
+
+transactions.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()).forEach(t => {
+if (t.tipo === 'receita') {
+currentBalance += t.valor;
+} else {
+currentBalance -= t.valor;
+}
+cumulativeBalance[t.timestamp.toDate().toLocaleDateString()] = currentBalance;
+});
+
+const dataPoints = dates.map(date => cumulativeBalance[date] || 0);
+
+balanceChart = new Chart(ctx, {
+type: 'line',
+data: {
+labels: dates,
+datasets: [{
+label: 'Saldo Acumulado (R$)',
+data: dataPoints,
+borderColor: '#4b3e34',
+backgroundColor: 'rgba(75, 62, 52, 0.1)',
+tension: 0.1,
+fill: true
+}]
+},
+options: {
+responsive: true,
+maintainAspectRatio: false,
+scales: {
+y: {
+beginAtZero: true
+}
+}
+}
+});
+};
+
+dashboardModule.handleFilter = () => {
+const startDate = document.getElementById('startDate').value;
+const endDate = document.getElementById('endDate').value;
+if (!startDate || !endDate) {
+showMessage('Por favor, selecione as duas datas.', true);
+return;
+}
+if (new Date(startDate) > new Date(endDate)) {
+showMessage('A Data Inicial não pode ser posterior à Data Final.', true);
+return;
+}
+dashboardModule.fetchDashboardData(startDate, endDate);
+showMessage('Filtro aplicado com sucesso!', false);
+};
+
+dashboardModule.handleClearFilter = () => {
+document.getElementById('startDate').value = '';
+document.getElementById('endDate').value = '';
+dashboardModule.fetchDashboardData();
+showMessage('Filtro de período limpo.', false);
+};
+
+
+// --- Módulo de Finanças (Gastos e Entradas) ---
+financeModule.init = () => {
+financeModule.fetchFinanceData();
+document.getElementById('add-receita-btn').addEventListener('click', financeModule.addReceita);
+document.getElementById('add-despesa-btn').addEventListener('click', financeModule.addDespesa);
+document.getElementById('export-btn').addEventListener('click', financeModule.exportToCSV);
+};
+
+financeModule.fetchFinanceData = () => {
+if (!userId) return;
+toggleLoader('loading-container', true);
+const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+const q = query(transactionsRef);
+
+onSnapshot(q, (snapshot) => {
+let totalReceitas = 0;
+let totalDespesas = 0;
+const transactions = [];
+snapshot.docs.forEach(doc => {
+const data = doc.data();
+transactions.push({ ...data, id: doc.id });
+if (data.tipo === 'receita') {
+totalReceitas += data.valor;
+} else {
+totalDespesas += data.valor;
+}
+});
+
+const saldo = totalReceitas - totalDespesas;
+document.getElementById('saldo-total').textContent = formatCurrency(saldo);
+financeModule.renderFinanceList(transactions);
+toggleLoader('loading-container', false);
+}, (error) => {
+console.error("Erro ao buscar dados de finanças:", error);
+showMessage('Erro ao carregar dados de finanças.', true);
+toggleLoader('loading-container', false);
+});
+};
+
+financeModule.renderFinanceList = (transactions) => {
+const list = document.getElementById('data-list');
+list.innerHTML = '';
+if (transactions.length === 0) {
+list.innerHTML = '<p class="text-gray-500 text-center">Nenhum lançamento encontrado.</p>';
+return;
+}
+
+transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()).forEach(t => {
+const transactionItem = document.createElement('div');
+transactionItem.className = `p-4 rounded-xl flex justify-between items-center transition duration-300 transform hover:scale-105 ${t.tipo === 'receita' ? 'bg-green-100 border-l-4 border-green-500' : 'bg-red-100 border-l-4 border-red-500'}`;
+transactionItem.innerHTML = `
+<div>
+<p class="font-bold text-gray-800">${t.descricao}</p>
+<p class="text-sm text-gray-500">${new Date(t.timestamp.toDate()).toLocaleDateString()}</p>
+</div>
+<div class="flex items-center space-x-2">
+<span class="font-bold text-lg ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}">
+${t.tipo === 'receita' ? '+' : '-'} ${formatCurrency(t.valor)}
+</span>
+<button class="delete-btn text-gray-400 hover:text-red-500" data-id="${t.id}">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+</svg>
+</button>
+</div>
+`;
+list.appendChild(transactionItem);
+});
+
+document.querySelectorAll('.delete-btn').forEach(btn => {
+btn.addEventListener('click', financeModule.deleteTransaction);
+});
+};
+
+financeModule.addReceita = async () => {
+if (!userId) {
+showMessage('Faça login para adicionar lançamentos.', true);
+return;
+}
+const descricao = document.getElementById('receita-descricao').value;
+const valor = parseFloat(document.getElementById('receita-valor').value);
+if (descricao && valor) {
+try {
+const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
+await setDoc(docRef, {
+descricao,
+valor,
+tipo: 'receita',
+timestamp: serverTimestamp()
+});
+showMessage('Entrada adicionada com sucesso!', false);
+document.getElementById('receita-descricao').value = '';
+document.getElementById('receita-valor').value = '';
+} catch (e) {
+console.error("Erro ao adicionar documento: ", e);
+showMessage('Erro ao adicionar entrada.', true);
+}
+} else {
+showMessage('Preencha todos os campos para a entrada.', true);
+}
+};
+
+financeModule.addDespesa = async () => {
+if (!userId) {
+showMessage('Faça login para adicionar lançamentos.', true);
+return;
+}
+const descricao = document.getElementById('despesa-descricao').value;
+const valor = parseFloat(document.getElementById('despesa-valor').value);
+if (descricao && valor) {
+try {
+const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
+await setDoc(docRef, {
+descricao,
+valor,
+tipo: 'despesa',
+timestamp: serverTimestamp()
+});
+showMessage('Saída adicionada com sucesso!', false);
+document.getElementById('despesa-descricao').value = '';
+document.getElementById('despesa-valor').value = '';
+} catch (e) {
+console.error("Erro ao adicionar documento: ", e);
+showMessage('Erro ao adicionar saída.', true);
+}
+} else {
+showMessage('Preencha todos os campos para a saída.', true);
+}
+};
+
+financeModule.deleteTransaction = async (event) => {
+if (!userId) return;
+const docId = event.currentTarget.getAttribute('data-id');
+if (docId) {
+try {
+const docRef = doc(db, `artifacts/${appId}/users/${userId}/transactions`, docId);
+await deleteDoc(docRef);
+showMessage('Lançamento excluído com sucesso!', false);
+} catch (e) {
+console.error("Erro ao excluir documento: ", e);
+showMessage('Erro ao excluir lançamento.', true);
+}
+}
+};
+
+financeModule.exportToCSV = () => {
+if (!userId) {
+showMessage('Faça login para exportar dados.', true);
+return;
+}
+const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+const q = query(transactionsRef);
+
+getDocs(q).then(snapshot => {
+const transactions = snapshot.docs.map(doc => doc.data());
+if (transactions.length === 0) {
+showMessage('Nenhum dado para exportar.', true);
+return;
+}
+
+const headers = ['Descrição', 'Tipo', 'Valor', 'Data'];
+const rows = transactions.map(t => [
+t.descricao,
+t.tipo,
+t.valor,
+t.timestamp.toDate().toLocaleDateString()
+]);
+
+let csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.map(e => e.join(',')).join("\n");
+const encodedUri = encodeURI(csvContent);
+const link = document.createElement("a");
+link.setAttribute("href", encodedUri);
+link.setAttribute("download", "lancamentos_vux.csv");
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+showMessage('Dados exportados com sucesso!', false);
+}).catch(e => {
+console.error("Erro ao exportar dados: ", e);
+showMessage('Erro ao exportar dados.', true);
+});
+};
+
+// --- Módulo de Serviços ---
+servicesModule.init = () => {
+servicesModule.fetchServices();
+document.getElementById('add-service-btn').addEventListener('click', servicesModule.addService);
+// Event listeners para os botões do modal de job
+document.getElementById('cancel-job-btn').addEventListener('click', () => {
+document.getElementById('add-job-modal').classList.add('hidden');
+servicesModule.selectedServiceForJob = null;
+});
+document.getElementById('save-job-btn').addEventListener('click', servicesModule.addServiceJob);
+};
+
+servicesModule.fetchServices = () => {
+if (!userId) return;
+toggleLoader('loading-services-container', true);
+const servicesRef = collection(db, `artifacts/${appId}/users/${userId}/services`);
+const q = query(servicesRef);
+
+onSnapshot(q, (snapshot) => {
+const services = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+servicesModule.renderServices(services);
+// Preenche o select do modal de evento na agenda
+const serviceSelect = document.getElementById('event-service-type');
+serviceSelect.innerHTML = '<option value="">-- Tipo de Serviço --</option>';
+services.forEach(service => {
+const option = document.createElement('option');
+option.value = service.id;
+option.textContent = service.nome;
+serviceSelect.appendChild(option);
+});
+toggleLoader('loading-services-container', false);
+
+// Carrega os serviços para a tela de controle
+servicesModule.fetchServiceControl();
+
+}, (error) => {
+console.error("Erro ao buscar serviços:", error);
+showMessage('Erro ao carregar serviços.', true);
+toggleLoader('loading-services-container', false);
+});
+};
+
+servicesModule.renderServices = (services) => {
+const list = document.getElementById('services-list');
+list.innerHTML = '';
+if (services.length === 0) {
+list.innerHTML = '<p class="text-gray-500 text-center">Nenhum serviço cadastrado.</p>';
+return;
+}
+services.forEach(s => {
+const serviceItem = document.createElement('div');
+serviceItem.className = `bg-white p-6 rounded-2xl shadow-lg border-l-4 border-gray-400 transition duration-300 transform hover:scale-105 hover:shadow-xl`;
+serviceItem.innerHTML = `
+<h4 class="text-lg font-bold text-gray-900">${s.nome}</h4>
+<p class="text-gray-600 mt-2 text-sm">${s.descricao}</p>
+<p class="font-semibold text-gray-800 mt-2">${formatCurrency(s.valor)}</p>
+<p class="text-sm text-gray-500 mt-1">Tipo: ${s.tipo}</p>
+<button class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700" data-id="${s.id}" data-name="${s.nome}" data-price="${s.valor}">
+Iniciar Serviço
+</button>
+`;
+list.appendChild(serviceItem);
+});
+document.querySelectorAll('#services-list button').forEach(btn => {
+btn.addEventListener('click', servicesModule.openAddJobModal);
+});
+};
+
+servicesModule.addService = async () => {
+if (!userId) {
+showMessage('Faça login para cadastrar serviços.', true);
+return;
+}
+const nome = document.getElementById('service-name').value;
+const descricao = document.getElementById('service-description').value;
+const tipo = document.getElementById('service-type').value;
+const valor = parseFloat(document.getElementById('service-price').value);
+
+if (nome && descricao && tipo && !isNaN(valor)) {
+try {
+await addDoc(collection(db, `artifacts/${appId}/users/${userId}/services`), {
+nome,
+descricao,
+tipo,
+valor,
+createdAt: serverTimestamp()
+});
+showMessage('Serviço cadastrado com sucesso!', false);
+document.getElementById('service-name').value = '';
+document.getElementById('service-description').value = '';
+document.getElementById('service-type').value = '';
+document.getElementById('service-price').value = '';
+} catch (e) {
+console.error("Erro ao adicionar serviço: ", e);
+showMessage('Erro ao cadastrar serviço.', true);
+}
+} else {
+showMessage('Preencha todos os campos para o serviço.', true);
+}
+};
+
+servicesModule.openAddJobModal = (event) => {
+servicesModule.selectedServiceForJob = {
+id: event.currentTarget.dataset.id,
+name: event.currentTarget.dataset.name,
+price: parseFloat(event.currentTarget.dataset.price)
+};
+document.getElementById('job-modal-service-name').textContent = `Serviço: ${servicesModule.selectedServiceForJob.name}`;
+document.getElementById('add-job-modal').classList.remove('hidden');
+document.getElementById('job-description').value = '';
+};
+
+servicesModule.addServiceJob = async () => {
+if (!userId || !servicesModule.selectedServiceForJob) return;
+const jobDescription = document.getElementById('job-description').value;
+
+if (jobDescription) {
+try {
+const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/serviceJobs`));
+await setDoc(docRef, {
+serviceId: servicesModule.selectedServiceForJob.id,
+serviceName: servicesModule.selectedServiceForJob.name,
+clientName: jobDescription,
+status: 'Em Andamento',
+price: servicesModule.selectedServiceForJob.price,
+timestamp: serverTimestamp()
+});
+showMessage('Serviço iniciado com sucesso!', false);
+document.getElementById('add-job-modal').classList.add('hidden');
+servicesModule.selectedServiceForJob = null;
+} catch (e) {
+console.error("Erro ao adicionar job: ", e);
+showMessage('Erro ao iniciar o serviço.', true);
+}
+} else {
+showMessage('O nome do cliente/job é obrigatório.', true);
+}
+};
+
+servicesModule.fetchServiceControl = () => {
+if (!userId) return;
+toggleLoader('loading-service-control-container', true);
+const jobsRef = collection(db, `artifacts/${appId}/users/${userId}/serviceJobs`);
+const q = query(jobsRef);
+onSnapshot(q, (snapshot) => {
+const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+servicesModule.renderServiceControl(jobs);
+toggleLoader('loading-service-control-container', false);
+}, (error) => {
+console.error("Erro ao buscar controle de serviços:", error);
+showMessage('Erro ao carregar o controle de serviços.', true);
+toggleLoader('loading-service-control-container', false);
+});
+};
+
+servicesModule.renderServiceControl = (jobs) => {
+const list = document.getElementById('service-control-list');
+list.innerHTML = '';
+if (jobs.length === 0) {
+list.innerHTML = '<p class="text-gray-500 text-center">Nenhum serviço em andamento.</p>';
+return;
+}
+
+jobs.sort((a,b) => b.timestamp.toDate() - a.timestamp.toDate()).forEach(job => {
+let statusColor = '';
+let statusText = '';
+switch(job.status) {
+case 'Em Andamento':
+statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-500';
+statusText = 'Em Andamento';
+break;
+case 'Concluído':
+statusColor = 'bg-green-100 text-green-800 border-green-500';
+statusText = 'Concluído';
+break;
+case 'Cancelado':
+statusColor = 'bg-red-100 text-red-800 border-red-500';
+statusText = 'Cancelado';
+break;
+default:
+statusColor = 'bg-gray-100 text-gray-800 border-gray-500';
+statusText = 'Desconhecido';
+}
+
+const jobItem = document.createElement('div');
+jobItem.className = `p-4 rounded-xl shadow-md border-l-4 ${statusColor} flex justify-between items-center transition duration-300 transform hover:scale-105`;
+jobItem.innerHTML = `
+<div>
+<p class="font-bold text-gray-900">${job.clientName}</p>
+<p class="text-sm text-gray-700 mt-1">${job.serviceName}</p>
+<p class="text-xs text-gray-500 mt-1">Status: <span class="font-semibold">${statusText}</span></p>
+</div>
+<div class="flex space-x-2">
+<button class="update-status-btn bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg text-xs" data-id="${job.id}" data-status="Concluído">Concluir</button>
+<button class="update-status-btn bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg text-xs" data-id="${job.id}" data-status="Cancelado">Cancelar</button>
+<button class="delete-job-btn text-gray-400 hover:text-red-500 p-2 rounded-lg" data-id="${job.id}">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+</svg>
+</button>
+</div>
+`;
+list.appendChild(jobItem);
+});
+
+document.querySelectorAll('.update-status-btn').forEach(btn => {
+btn.addEventListener('click', servicesModule.updateJobStatus);
+});
+document.querySelectorAll('.delete-job-btn').forEach(btn => {
+btn.addEventListener('click', servicesModule.deleteJob);
+});
+};
+
+servicesModule.updateJobStatus = async (event) => {
+if (!userId) return;
+const docId = event.currentTarget.dataset.id;
+const newStatus = event.currentTarget.dataset.status;
+try {
+const jobRef = doc(db, `artifacts/${appId}/users/${userId}/serviceJobs`, docId);
+await updateDoc(jobRef, { status: newStatus });
+
+// Se o status for 'Concluído', adiciona como uma receita
+if (newStatus === 'Concluído') {
+const jobDoc = await getDoc(jobRef);
+if (jobDoc.exists()) {
+const jobData = jobDoc.data();
+const financeDocRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
+await setDoc(financeDocRef, {
+descricao: `Receita do serviço: ${jobData.serviceName} - Cliente: ${jobData.clientName}`,
+valor: jobData.price,
+tipo: 'receita',
+timestamp: serverTimestamp()
+});
+showMessage('Serviço concluído e receita adicionada!', false);
+}
+} else {
+showMessage(`Status do serviço atualizado para "${newStatus}".`, false);
+}
+
+} catch (e) {
+console.error("Erro ao atualizar status do job:", e);
+showMessage('Erro ao atualizar status do serviço.', true);
+}
+};
+
+servicesModule.deleteJob = async (event) => {
+if (!userId) return;
+const docId = event.currentTarget.dataset.id;
+try {
+const jobRef = doc(db, `artifacts/${appId}/users/${userId}/serviceJobs`, docId);
+await deleteDoc(jobRef);
+showMessage('Serviço removido do controle.', false);
+} catch (e) {
+console.error("Erro ao remover job:", e);
+showMessage('Erro ao remover serviço do controle.', true);
+}
+};
+
+// --- Módulo de Agenda ---
+calendarModule.init = () => {
+calendarModule.currentDate = new Date();
+calendarModule.selectedDay = null;
+calendarModule.renderCalendar();
+calendarModule.fetchEvents();
+
+document.getElementById('prev-month-btn').addEventListener('click', calendarModule.prevMonth);
+document.getElementById('next-month-btn').addEventListener('click', calendarModule.nextMonth);
+document.getElementById('add-event-btn').addEventListener('click', calendarModule.openAddEventModal);
+document.getElementById('save-event-btn').addEventListener('click', calendarModule.saveEvent);
+document.getElementById('cancel-event-btn').addEventListener('click', calendarModule.closeAddEventModal);
+};
+
+calendarModule.renderCalendar = () => {
+const monthYearEl = document.getElementById('current-month-year');
+const calendarDaysEl = document.getElementById('calendar-days');
+const daysInMonth = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth() + 1, 0).getDate();
+const firstDayIndex = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth(), 1).getDay();
+
+monthYearEl.textContent = calendarModule.currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+calendarDaysEl.innerHTML = '';
+
+for (let i = 0; i < firstDayIndex; i++) {
+const emptyDay = document.createElement('div');
+calendarDaysEl.appendChild(emptyDay);
+}
+
+for (let i = 1; i <= daysInMonth; i++) {
+const dayEl = document.createElement('div');
+dayEl.textContent = i;
+dayEl.className = 'calendar-day p-2 rounded-lg text-center cursor-pointer hover:bg-gray-200 transition-colors';
+const dayDate = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth(), i);
+if (calendarModule.selectedDay && dayDate.toDateString() === calendarModule.selectedDay.toDateString()) {
+dayEl.classList.add('active');
+}
+
+dayEl.addEventListener('click', () => calendarModule.selectDay(dayDate));
+calendarDaysEl.appendChild(dayEl);
+}
+
+// Após renderizar o calendário, renderiza os eventos para o dia selecionado (se houver)
+calendarModule.renderEventsForSelectedDay();
+};
+
+calendarModule.selectDay = (date) => {
+calendarModule.selectedDay = date;
+const days = document.querySelectorAll('.calendar-day');
+days.forEach(day => day.classList.remove('active'));
+// Encontra e ativa o dia selecionado
+const dayEls = document.getElementById('calendar-days').children;
+const dayIndex = date.getDate() + (new Date(date.getFullYear(), date.getMonth(), 1).getDay()) - 1;
+if (dayEls[dayIndex]) {
+dayEls[dayIndex].classList.add('active');
+}
+
+// Exibe os eventos para o dia selecionado
+calendarModule.renderEventsForSelectedDay();
+};
+
+calendarModule.prevMonth = () => {
+calendarModule.currentDate.setMonth(calendarModule.currentDate.getMonth() - 1);
+calendarModule.renderCalendar();
+calendarModule.fetchEvents();
+};
+
+calendarModule.nextMonth = () => {
+calendarModule.currentDate.setMonth(calendarModule.currentDate.getMonth() + 1);
+calendarModule.renderCalendar();
+calendarModule.fetchEvents();
+};
+
+calendarModule.fetchEvents = () => {
+if (!userId) return;
+const eventsRef = collection(db, `artifacts/${appId}/users/${userId}/events`);
+const q = query(eventsRef);
+
+onSnapshot(q, (snapshot) => {
+calendarModule.events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+calendarModule.renderEventsForSelectedDay();
+}, (error) => {
+console.error("Erro ao buscar eventos:", error);
+showMessage('Erro ao carregar eventos da agenda.', true);
+});
+};
+calendarModule.renderEventsForSelectedDay = () => {
+const list = document.getElementById('events-list');
+const noEventsMessage = document.getElementById('no-events-message');
+list.innerHTML = '';
+if (!calendarModule.selectedDay) {
+noEventsMessage.classList.remove('hidden');
+return;
+}
+
+const eventsToday = calendarModule.events.filter(event => {
+const eventDate = event.date.toDate();
+return eventDate.toDateString() === calendarModule.selectedDay.toDateString();
+});
+
+if (eventsToday.length === 0) {
+noEventsMessage.classList.remove('hidden');
+} else {
+noEventsMessage.classList.add('hidden');
+eventsToday.sort((a,b) => a.time.localeCompare(b.time)).forEach(event => {
+const eventItem = document.createElement('div');
+eventItem.className = 'p-4 rounded-xl shadow-md border-l-4 border-indigo-500 bg-indigo-50 flex justify-between items-center transition duration-300 transform hover:scale-105';
+eventItem.innerHTML = `
+<div>
+<p class="font-bold text-gray-900">${event.title}</p>
+<p class="text-sm text-gray-700 mt-1">Horário: ${event.time}</p>
+<p class="text-xs text-gray-500 mt-1">Local: ${event.location || 'N/A'}</p>
+<p class="text-xs text-gray-500 mt-1">Serviço: ${event.serviceName || 'N/A'}</p>
+</div>
+<button class="delete-event-btn text-gray-400 hover:text-red-500 p-2 rounded-lg" data-id="${event.id}">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+</svg>
+</button>
+`;
+list.appendChild(eventItem);
+});
+
+document.querySelectorAll('.delete-event-btn').forEach(btn => {
+btn.addEventListener('click', calendarModule.deleteEvent);
+});
+}
+};
+
+
+calendarModule.openAddEventModal = () => {
+document.getElementById('event-title').value = '';
+document.getElementById('event-date').value = calendarModule.selectedDay ? calendarModule.selectedDay.toISOString().substring(0, 10) : '';
+document.getElementById('event-time').value = '';
+document.getElementById('event-location').value = '';
+document.getElementById('event-service-type').value = '';
+document.getElementById('add-event-modal').classList.remove('hidden');
+};
+
+calendarModule.closeAddEventModal = () => {
+document.getElementById('add-event-modal').classList.add('hidden');
+};
+calendarModule.saveEvent = async () => {
+if (!userId) {
+showMessage('Faça login para salvar eventos.', true);
+return;
+}
+const title = document.getElementById('event-title').value;
+const date = document.getElementById('event-date').value;
+const time = document.getElementById('event-time').value;
+const location = document.getElementById('event-location').value;
+const serviceId = document.getElementById('event-service-type').value;
+const serviceName = document.getElementById('event-service-type').options[document.getElementById('event-service-type').selectedIndex].text;
+
+if (title && date) {
+try {
+const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/events`));
+await setDoc(docRef, {
+title,
+date: new Date(date),
+time,
+location,
+serviceId,
+serviceName,
+createdAt: serverTimestamp()
+});
+showMessage('Evento salvo com sucesso!', false);
+calendarModule.closeAddEventModal();
+} catch(e) {
+console.error("Erro ao salvar evento:", e);
+showMessage('Erro ao salvar o evento.', true);
+}
+} else {
+showMessage('Título e data são obrigatórios.', true);
+}
+};
+
+calendarModule.deleteEvent = async (event) => {
+if (!userId) return;
+const docId = event.currentTarget.dataset.id;
+try {
+const docRef = doc(db, `artifacts/${appId}/users/${userId}/events`, docId);
+await deleteDoc(docRef);
+showMessage('Evento excluído com sucesso.', false);
+} catch (e) {
+console.error("Erro ao excluir evento:", e);
+showMessage('Erro ao excluir o evento.', true);
+}
+};
+
+
+// --- Eventos da UI e Navegação ---
+document.getElementById('login-btn').addEventListener('click', authModule.handleLogin);
+
+logoutBtns.forEach(btn => {
+btn.addEventListener('click', authModule.handleLogout);
+});
+
+// Navegação da sidebar
+sidebarBtns.forEach(btn => {
+btn.addEventListener('click', () => {
+const targetTabId = btn.getAttribute('data-tab');
+document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+document.getElementById(targetTabId).classList.remove('hidden');
+
+sidebarBtns.forEach(b => b.classList.remove('active'));
+btn.classList.add('active');
+
+// Esconde a sidebar em telas pequenas
+if (window.innerWidth < 1024) {
+sidebar.classList.add('-translate-x-full');
+}
+
+// Dispara a função init do módulo correspondente, caso ainda não tenha sido feito
+// Já fizemos isso em onAuthStateChanged, mas para garantir
+});
+});
+
+// Toggle do menu em mobile
+menuBtn.addEventListener('click', () => {
+sidebar.classList.remove('-translate-x-full');
+});
+
+closeMenuBtn.addEventListener('click', () => {
+sidebar.classList.add('-translate-x-full');
+});
+
+// Inicializa a aplicação
+window.onload = () => {
+authModule.setup();
+};
+
+</script>
+
 </body>
 </html>
