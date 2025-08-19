@@ -1,1392 +1,1007 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VUX Control</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body {
-font-family: 'Inter', sans-serif;
-background-color: #f0f2f5;
-overflow-x: hidden; /* Evita rolagem horizontal indesejada */
-}
-.vux-logo {
-background-color: #4b3e34;
-color: #d6cdc3;
-font-weight: bold;
-display: flex;
-align-items: center;
-justify-content: center;
-}
-.sidebar-btn.active {
-background-color: #2e2621;
-color: white;
-border-left: 4px solid #d6cdc3;
-}
-.sidebar-btn:not(.active) {
-border-left: 4px solid transparent;
-}
-.message-box {
-position: fixed;
-top: 20px;
-left: 50%;
-transform: translateX(-50%);
-z-index: 1000;
-padding: 12px 24px;
-border-radius: 8px;
-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-transition: all 0.5s ease-in-out;
-opacity: 0;
-visibility: hidden;
-max-width: 90%;
-text-align: center;
-}
-.message-box.show {
-opacity: 1;
-visibility: visible;
-}
-.loader {
-border: 4px solid #f3f3f3;
-border-top: 4px solid #4b3e34;
-border-radius: 50%;
-width: 24px;
-height: 24px;
-animation: spin 1s linear infinite;
-}
-@keyframes spin {
-0% { transform: rotate(0deg); }
-100% { transform: rotate(360deg); }
-}
-.tab-content {
-display: none;
-animation: fadeIn 0.5s ease-in-out;
-}
-.tab-content.active {
-display: block;
-}
-@keyframes fadeIn {
-from { opacity: 0; transform: translateY(10px); }
-to { opacity: 1; transform: translateY(0); }
-}
-.calendar-day.active {
-background-color: #4b3e34 !important;
-color: white;
-}
-</style>
-</head>
-<body class="bg-[#f0f2f5]">
+import { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
+import { getFirestore, doc, setDoc, collection, query, where, getDocs, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
-<!-- Mensagem de notificação flutuante -->
-<div id="message-box" class="message-box"></div>
-
-<!-- Layout principal da aplicação -->
-<div class="flex min-h-screen">
-
-<!-- Sidebar de navegação -->
-<nav id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white p-6 transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-auto hidden">
-<div class="flex items-center justify-between mb-8">
-<div class="flex items-center space-x-2">
-<div class="vux-logo h-12 w-12 rounded-full text-lg shadow-md"> VUX. </div>
-<span class="text-xl font-bold">VUX Control</span>
-</div>
-<button id="close-menu-btn" class="text-gray-400 hover:text-white lg:hidden">
-<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-</svg>
-</button>
-</div>
-<ul class="space-y-4 text-sm font-medium">
-<li><button class="sidebar-btn active w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="dashboard-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-9v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg><span>Dashboard</span></button></li>
-<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="gastos-entradas-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg><span>Finanças</span></button></li>
-<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="servicos-planos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2m-2 4h-4m2 0a2 2 0 002-2V9a2 2 0 00-2-2"></path></svg><span>Catálogo</span></button></li>
-<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="cadastro-servicos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg><span>Cadastrar</span></button></li>
-<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="agenda-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span>Agenda</span></button></li>
-<li><button class="sidebar-btn w-full py-3 px-4 rounded-lg flex items-center space-x-3 transition duration-300" data-tab="controle-servicos-view"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6a2 2 0 00-2-2H5a2 2 0 00-2 2v13a2 2 0 002 2h4zm-5 0h16a1 1 0 001-1v-8a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1zM9 19a1 1 0 01-1-1v-8a1 1 0 011-1h6a1 1 0 011 1v8a1 1 0 01-1 1H9z"></path></svg><span>Controle</span></button></li>
-</ul>
-</nav>
-
-<!-- Conteúdo principal -->
-<main class="flex-1 p-6 lg:p-10">
-<!-- Header para mobile -->
-<header class="flex justify-between items-center mb-8 lg:hidden">
-<button id="menu-btn" class="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition duration-300 hidden">
-<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-</svg>
-</button>
-<h1 class="text-2xl font-bold text-gray-900">VUX Control</h1>
-<button id="logout-btn-mobile" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300 hidden">
-Sair
-</button>
-</header>
-
-<!-- Autenticação (visível por padrão) -->
-<div id="auth-view" class="flex items-center justify-center min-h-screen">
-<div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md">
-<div class="flex flex-col items-center">
-<div class="vux-logo h-24 w-24 rounded-full mb-6 text-3xl shadow-md">
-VUX.
-</div>
-</div>
-<div class="space-y-4 mt-6">
-<div>
-<label for="username" class="block text-sm font-medium text-gray-700">Utilizador</label>
-<input type="text" id="username" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="Admin">
-</div>
-<div>
-<label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
-<input type="password" id="password" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base" value="1234">
-</div>
-<div class="text-center text-red-500 font-medium" id="auth-error-message"></div>
-<button id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-semibold text-white bg-[#4b3e34] hover:bg-[#5b4d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4b3e34] transition duration-300 ease-in-out transform hover:scale-105">
-Entrar
-</button>
-</div>
-</div>
-</div>
-
-<!-- Dashboard View -->
-<div id="dashboard-view" class="tab-content hidden">
-<div class="flex justify-end items-center mb-8 hidden lg:flex">
-<button id="logout-btn-desktop" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-Sair
-</button>
-</div>
-<!-- Seletor de Período -->
-<div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
-<h3 class="text-xl font-semibold text-gray-900 mb-4">Filtrar por Período</h3>
-<div class="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-<div class="flex-1 w-full">
-<label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
-<input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5">
-</div>
-<div class="flex-1 w-full">
-<label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
-<input type="date" id="endDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5">
-</div>
-</div>
-<div class="flex mt-4 space-x-2">
-<button id="applyFilterBtn" class="flex-1 bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors shadow-lg">
-Aplicar
-</button>
-<button id="clearFilterBtn" class="flex-1 bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-lg hover:bg-gray-400 transition-colors shadow-lg">
-Limpar Filtro
-</button>
-</div>
-</div>
-
-<div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
-<div class="flex justify-between items-center mb-4">
-<h3 class="text-2xl font-bold text-gray-900">Resumo Financeiro</h3>
-<div id="saldo-total-dashboard" class="font-bold text-3xl text-gray-700">A carregar...</div>
-</div>
-</div>
-
-<div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
-<h3 class="text-xl font-semibold text-gray-900 mb-4">Visão Geral de Entradas e Saídas</h3>
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-<div class="p-4 rounded-xl border-l-4 border-green-500 bg-green-50">
-<h4 class="text-lg font-medium text-green-800">Entradas</h4>
-<div id="total-receitas-dashboard" class="font-bold text-2xl text-green-600 mt-1">R$ 0.00</div>
-</div>
-<div class="p-4 rounded-xl border-l-4 border-red-500 bg-red-50">
-<h4 class="text-lg font-medium text-red-800">Saídas</h4>
-<div id="total-despesas-dashboard" class="font-bold text-2xl text-red-600 mt-1">R$ 0.00</div>
-</div>
-</div>
-<div class="relative h-64">
-<canvas id="balanceChart"></canvas>
-</div>
-</div>
-
-<div class="bg-white p-6 rounded-2xl shadow-lg">
-<h3 class="text-xl font-semibold text-gray-900 mb-4">Últimos Lançamentos</h3>
-<div class="flex items-center justify-center py-4 hidden" id="loading-dashboard-container">
-<div class="loader"></div>
-<span class="ml-2 text-gray-500">A carregar dados...</span>
-</div>
-<div id="recent-transactions-list" class="space-y-4">
-</div>
-</div>
-</div>
-
-<!-- Gastos e Entradas View -->
-<div id="gastos-entradas-view" class="tab-content hidden">
-<div class="flex justify-end items-center mb-8 hidden lg:flex">
-<button id="logout-btn-desktop-2" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-Sair
-</button>
-</div>
-<div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
-<div class="flex justify-between items-center mb-4">
-<h3 class="text-2xl font-bold text-gray-900">Resumo Geral</h3>
-<div id="saldo-total" class="font-bold text-3xl text-gray-700">A carregar...</div>
-</div>
-</div>
-
-<div class="grid md:grid-cols-2 gap-6 mb-8">
-<div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-green-400">
-<h3 class="text-xl font-semibold text-green-800 mb-4">Adicionar Entrada</h3>
-<div class="space-y-4">
-<div>
-<label for="receita-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
-<input type="text" id="receita-descricao" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
-</div>
-<div>
-<label for="receita-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
-<input type="number" id="receita-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
-</div>
-<button id="add-receita-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
-Adicionar Entrada
-</button>
-</div>
-</div>
-
-<div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-red-400">
-<h3 class="text-xl font-semibold text-red-800 mb-4">Adicionar Saída</h3>
-<div class="space-y-4">
-<div>
-<label for="despesa-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
-<input type="text" id="despesa-descricao" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
-</div>
-<div>
-<label for="despesa-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
-<input type="number" id="despesa-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
-</div>
-<button id="add-despesa-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-300">
-Adicionar Saída
-</button>
-</div>
-</div>
-</div>
-
-<div class="bg-white p-6 rounded-2xl shadow-lg">
-<h3 class="text-xl font-semibold text-gray-900 mb-4">Lançamentos Recentes</h3>
-<div class="flex items-center justify-center py-4 hidden" id="loading-container">
-<div class="loader"></div>
-<span class="ml-2 text-gray-500">A carregar dados...</span>
-</div>
-<div id="data-list" class="space-y-4">
-</div>
-<button id="export-btn" class="w-full mt-6 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
-Exportar para Planilha
-</button>
-</div>
-</div>
-
-<!-- Serviços e Planos View -->
-<div id="servicos-planos-view" class="tab-content hidden">
-<div class="flex justify-end items-center mb-8 hidden lg:flex">
-<button id="logout-btn-desktop-3" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-Sair
-</button>
-</div>
-<div class="bg-white p-6 rounded-2xl shadow-lg">
-<h3 class="text-2xl font-bold text-gray-900 mb-6">Catálogo de Serviços e Planos</h3>
-<div class="flex items-center justify-center py-4 hidden" id="loading-services-container">
-<div class="loader"></div>
-<span class="ml-2 text-gray-500">A carregar serviços...</span>
-</div>
-<div id="services-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-</div>
-</div>
-</div>
-
-<!-- Cadastro de Serviços View -->
-<div id="cadastro-servicos-view" class="tab-content hidden">
-<div class="flex justify-end items-center mb-8 hidden lg:flex">
-<button id="logout-btn-desktop-4" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-Sair
-</button>
-</div>
-<div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-yellow-400">
-<h3 class="text-2xl font-bold text-gray-900 mb-6">Cadastro de Novo Serviço/Plano</h3>
-<div class="space-y-4">
-<div>
-<label for="service-name" class="block text-sm font-medium text-gray-700">Nome do Serviço/Plano</label>
-<input type="text" id="service-name" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
-</div>
-<div>
-<label for="service-description" class="block text-sm font-medium text-gray-700">Descrição</label>
-<textarea id="service-description" rows="3" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500"></textarea>
-</div>
-<div>
-<label for="service-type" class="block text-sm font-medium text-gray-700">Tipo de Serviço</label>
-<select id="service-type" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
-<option value="">-- Selecione o tipo --</option>
-<option value="Plano Básico">Plano Básico</option>
-<option value="Plano Intermediário">Plano Intermediário</option>
-<option value="Plano Premium">Plano Premium</option>
-<option value="Serviço Avulso">Serviço Avulso</option>
-</select>
-</div>
-<div>
-<label for="service-price" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
-<input type="number" id="service-price" step="0.01" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
-</div>
-<button id="add-service-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-300">
-Cadastrar Serviço
-</button>
-</div>
-</div>
-</div>
-
-<!-- Agenda View -->
-<div id="agenda-view" class="tab-content hidden">
-<div class="flex justify-end items-center mb-8 hidden lg:flex">
-<button id="logout-btn-desktop-5" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-Sair
-</button>
-</div>
-<div class="bg-white p-6 rounded-2xl shadow-lg">
-<h3 class="text-2xl font-bold text-gray-900 mb-6">Agenda de Compromissos</h3>
-<div class="flex items-center justify-center mb-4 space-x-4">
-<button id="prev-month-btn" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
-<h4 class="text-lg font-bold text-center" id="current-month-year"></h4>
-<button id="next-month-btn" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
-</div>
-<div class="grid grid-cols-7 text-center font-semibold text-sm text-gray-600 mb-2">
-<span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-</div>
-<div id="calendar-days" class="grid grid-cols-7 gap-1">
-</div>
-<div id="events-list" class="mt-6 space-y-4">
-<!-- Eventos do dia selecionado serão injetados aqui -->
-<p id="no-events-message" class="text-gray-500 text-center hidden">Nenhum evento para este dia.</p>
-</div>
-<button id="add-event-btn" class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Adicionar Evento</button>
-</div>
-
-<!-- Modal para adicionar evento -->
-<div id="add-event-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-<div class="relative p-6 border w-full max-w-sm sm:max-w-md shadow-lg rounded-xl bg-white">
-<h3 class="text-xl font-bold mb-4">Adicionar Novo Evento</h3>
-<div class="space-y-4">
-<input type="text" id="event-title" placeholder="Título do Evento" class="w-full p-3 border rounded-lg">
-<input type="date" id="event-date" class="w-full p-3 border rounded-lg">
-<input type="time" id="event-time" class="w-full p-3 border rounded-lg">
-<input type="text" id="event-location" placeholder="Local" class="w-full p-3 border rounded-lg">
-<select id="event-service-type" class="w-full p-3 border rounded-lg">
-<option value="">-- Tipo de Serviço --</option>
-</select>
-</div>
-<div class="mt-6 flex justify-end space-x-2">
-<button id="save-event-btn" class="py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-300">Salvar</button>
-<button id="cancel-event-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
-</div>
-</div>
-</div>
-</div>
-
-<!-- Controle de Serviços View -->
-<div id="controle-servicos-view" class="tab-content hidden">
-<div class="flex justify-end items-center mb-8 hidden lg:flex">
-<button id="logout-btn-desktop-6" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
-Sair
-</button>
-</div>
-<div class="bg-white p-6 rounded-2xl shadow-lg">
-<h3 class="text-2xl font-bold text-gray-900 mb-6">Controle de Status dos Serviços</h3>
-<div class="flex items-center justify-center py-4 hidden" id="loading-service-control-container">
-<div class="loader"></div>
-<span class="ml-2 text-gray-500">A carregar serviços...</span>
-</div>
-<div id="service-control-list" class="space-y-4">
-</div>
-</div>
-</div>
-
-<!-- Modal para iniciar serviço (Job) -->
-<div id="add-job-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-<div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm">
-<h3 class="text-2xl font-bold text-gray-900 mb-4">Iniciar Novo Serviço</h3>
-<div class="space-y-4">
-<div id="job-modal-service-name" class="font-medium text-gray-700 text-lg"></div>
-<div>
-<label for="job-description" class="block text-sm font-medium text-gray-700">Nome do Job/Cliente</label>
-<input type="text" id="job-description" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-</div>
-</div>
-<div class="flex justify-end space-x-2 mt-6">
-<button id="cancel-job-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
-<button id="save-job-btn" class="py-2 px-4 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition duration-300">Salvar</button>
-</div>
-</div>
-</div>
-
-</main>
-</div>
-
-<!-- Script para o Firebase -->
-<script type="module">
-// Importações do Firebase
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"
-import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
-
-// Variáveis globais do ambiente Canvas (não alterar)
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
 
-// Inicialização do Firebase
-// Movido para o escopo global para garantir que os objetos estejam disponíveis
-// antes de qualquer chamada de função. Isso resolve os erros de inicialização.
-let app, db, auth, userId;
-try {
-app = initializeApp(firebaseConfig);
-auth = getAuth(app);
-db = getFirestore(app);
-} catch (error) {
-console.error("Erro ao inicializar Firebase:", error);
-document.getElementById('auth-error-message').textContent = 'Erro de configuração. Verifique a chave de API.';
-}
+// Variáveis globais do aplicativo
+let app = null;
+let db = null;
+let auth = null;
 
-
-// Elementos da UI
-const authView = document.getElementById('auth-view');
-const dashboardView = document.getElementById('dashboard-view');
-const sidebar = document.getElementById('sidebar');
-const menuBtn = document.getElementById('menu-btn');
-const closeMenuBtn = document.getElementById('close-menu-btn');
-const logoutBtns = document.querySelectorAll('[id^="logout-btn-"]');
-const sidebarBtns = document.querySelectorAll('.sidebar-btn');
-const messageBox = document.getElementById('message-box');
-// Módulos da aplicação
-const authModule = {};
-const dashboardModule = {};
-const financeModule = {};
-const servicesModule = {};
-const calendarModule = {};
-
-// Funções utilitárias
-function showMessage(message, isError = false) {
-messageBox.textContent = message;
-messageBox.classList.remove('bg-green-500', 'bg-red-500');
-messageBox.classList.add(isError ? 'bg-red-500' : 'bg-green-500');
-messageBox.classList.add('text-white', 'show');
-setTimeout(() => {
-messageBox.classList.remove('show');
-}, 3000);
-}
-
-function toggleLoader(containerId, show) {
-const loaderContainer = document.getElementById(containerId);
-if (loaderContainer) {
-if (show) {
-loaderContainer.classList.remove('hidden');
-} else {
-loaderContainer.classList.add('hidden');
-}
-}
-}
-
-function formatCurrency(value) {
-return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
-
-// --- Módulo de Autenticação ---
-authModule.setup = () => {
-// O inicializador do Firebase já foi movido para o escopo global.
-// Aqui, apenas configuramos o listener de estado de autenticação.
-onAuthStateChanged(auth, async (user) => {
-if (user) {
-userId = user.uid;
-authView.classList.add('hidden');
-dashboardView.classList.add('active');
-dashboardView.classList.remove('hidden');
-sidebar.classList.remove('hidden');
-menuBtn.classList.remove('hidden'); // Mostra o menu hambúrguer
-document.getElementById('logout-btn-mobile').classList.remove('hidden');
-showMessage(`Bem-vindo, ${user.displayName || 'Usuário'}!`);
-// Inicia a escuta de todos os módulos
-dashboardModule.init();
-financeModule.init();
-servicesModule.init();
-calendarModule.init();
-
-} else {
-userId = null;
-authView.classList.remove('hidden');
-document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
-sidebar.classList.add('hidden');
-menuBtn.classList.add('hidden'); // Esconde o menu hambúrguer
-document.getElementById('logout-btn-mobile').classList.add('hidden');
-}
-});
+// === Componente Modal Reutilizável para Formulários ===
+const Modal = ({ show, onClose, title, children }) => {
+  if (!show) {
+    return null;
+  }
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4">
+        <div className="flex justify-between items-center mb-4 border-b pb-2">
+          <h3 className="text-xl font-semibold text-[#5E4D40]">{title}</h3>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div>{children}</div>
+      </div>
+    </div>
+  );
 };
 
-authModule.handleLogin = async () => {
-const usernameInput = document.getElementById('username').value;
-const passwordInput = document.getElementById('password').value;
-const errorMessage = document.getElementById('auth-error-message');
-errorMessage.textContent = '';
-// Simulação de login, no mundo real, você usaria Firebase Auth com email/senha
-if (usernameInput === "Admin" && passwordInput === "1234") {
-try {
-// Autenticação com token personalizado (requer backend) ou anônima
-if (initialAuthToken) {
-await signInWithCustomToken(auth, initialAuthToken);
-} else {
-await signInAnonymously(auth);
-}
-} catch (error) {
-console.error("Erro de autenticação:", error);
-errorMessage.textContent = 'Falha na autenticação. Tente novamente.';
-}
-} else {
-errorMessage.textContent = 'Usuário ou senha inválidos.';
-}
+// === Componente de Login ===
+const LoginScreen = ({ login, loginError, isAuthenticating }) => {
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    login(loginId, password);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-stone-200">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-center mb-6">
+          <span className="text-6xl font-black text-[#5E4D40]">VUX</span>
+          <span className="text-6xl text-[#6A5A4A] font-extrabold -ml-2">.</span>
+        </div>
+        <h1 className="text-xl font-bold text-center mb-6 text-stone-700">Controlo de Acesso</h1>
+        <form onSubmit={handleLogin}>
+          <div className="mb-4">
+            <label htmlFor="login-id" className="block text-sm font-medium text-stone-700 mb-1">Login:</label>
+            <input
+              type="text"
+              id="login-id"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6A5A4A]"
+              placeholder="Digite o seu login"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="password" className="block text-sm font-medium text-stone-700 mb-1">Senha:</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6A5A4A]"
+              placeholder="Digite a sua senha"
+              required
+            />
+          </div>
+          {loginError && <p className="text-red-500 text-sm mb-4">{loginError}</p>}
+          <button
+            type="submit"
+            className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors"
+            disabled={isAuthenticating}
+          >
+            {isAuthenticating ? 'A entrar...' : 'Entrar'}
+          </button>
+          <p className="mt-4 text-xs text-center text-stone-500">
+            * Use o login `Admin.Vux` com a senha `1234` para aceder ao painel de administração.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
 };
 
-authModule.handleLogout = async () => {
-try {
-await signOut(auth);
-showMessage('Sessão encerrada com sucesso.', false);
-// Limpa os dados em tela após o logout
-document.getElementById('recent-transactions-list').innerHTML = '';
-document.getElementById('data-list').innerHTML = '';
-document.getElementById('services-list').innerHTML = '';
-document.getElementById('service-control-list').innerHTML = '';
-document.getElementById('events-list').innerHTML = '';
-document.getElementById('saldo-total-dashboard').textContent = 'A carregar...';
-document.getElementById('total-receitas-dashboard').textContent = 'R$ 0.00';
-document.getElementById('total-despesas-dashboard').textContent = 'R$ 0.00';
-document.getElementById('saldo-total').textContent = 'A carregar...';
+// === Componente para a Aba de Gastos e Entradas ===
+const GastosEntradas = ({ userId, isAuthReady }) => {
+  const [gastos, setGastos] = useState([]);
+  const [entradas, setEntradas] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState('entrada');
+  const [description, setDescription] = useState('');
+  const [value, setValue] = useState('');
 
-} catch (error) {
-console.error("Erro ao fazer logout:", error);
-showMessage('Erro ao sair da conta. Tente novamente.', true);
-}
+  // Listener do Firestore
+  useEffect(() => {
+    if (!db || !userId || !isAuthReady) return;
+
+    // Listener para Entradas
+    const entradasRef = collection(db, 'artifacts', appId, 'users', userId, 'entradas');
+    const unsubscribeEntradas = onSnapshot(entradasRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEntradas(data);
+    }, (error) => { console.error("Erro ao carregar entradas:", error); });
+    
+    // Listener para Gastos
+    const gastosRef = collection(db, 'artifacts', appId, 'users', userId, 'gastos');
+    const unsubscribeGastos = onSnapshot(gastosRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setGastos(data);
+    }, (error) => { console.error("Erro ao carregar gastos:", error); });
+
+    return () => {
+      unsubscribeEntradas();
+      unsubscribeGastos();
+    };
+  }, [userId, isAuthReady]);
+
+  const totalEntradas = entradas.reduce((sum, item) => sum + parseFloat(item.value || 0), 0);
+  const totalGastos = gastos.reduce((sum, item) => sum + parseFloat(item.value || 0), 0);
+  const saldoTotal = totalEntradas - totalGastos;
+  const maxBarHeight = Math.max(totalEntradas, totalGastos);
+
+  const handleAddTransaction = async (e) => {
+    e.preventDefault();
+    if (!description || !value || isNaN(parseFloat(value))) return;
+
+    const transactionData = {
+      date: new Date().toLocaleDateString('pt-PT'),
+      description,
+      value: parseFloat(value),
+    };
+
+    try {
+      const collectionRef = collection(db, 'artifacts', appId, 'users', userId, transactionType === 'entrada' ? 'entradas' : 'gastos');
+      await setDoc(doc(collectionRef), transactionData);
+      
+      setDescription('');
+      setValue('');
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Erro ao adicionar transação:", error);
+    }
+  };
+
+  const handleDeleteTransaction = async (id, type) => {
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', userId, type === 'entrada' ? 'entradas' : 'gastos', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error("Erro ao eliminar transação:", error);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
+      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">📊 Gastos e Entradas</h2>
+      
+      {/* Resumo Financeiro com Gráfico */}
+      <div className="mb-4 p-6 rounded-2xl border-2 border-stone-200 bg-white shadow-lg">
+        <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Resumo Financeiro</h3>
+        
+        {/* Gráfico de Barras */}
+        <div className="flex justify-around items-end h-32 mb-4">
+          <div className="flex-1 text-center">
+            <div className="bg-green-500 rounded-t-lg mx-auto transition-all duration-500" style={{ height: `${(totalEntradas / (maxBarHeight || 1)) * 100}%`, width: '40px' }}></div>
+            <p className="mt-2 text-sm text-green-600">Entradas</p>
+            <p className="font-bold">R$ {totalEntradas.toFixed(2)}</p>
+          </div>
+          <div className="flex-1 text-center">
+            <div className="bg-red-500 rounded-t-lg mx-auto transition-all duration-500" style={{ height: `${(totalGastos / (maxBarHeight || 1)) * 100}%`, width: '40px' }}></div>
+            <p className="mt-2 text-sm text-red-600">Gastos</p>
+            <p className="font-bold">R$ {totalGastos.toFixed(2)}</p>
+          </div>
+        </div>
+        <p className="text-2xl font-bold text-center mt-4">Saldo Total: <span className={saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>R$ {saldoTotal.toFixed(2)}</span></p>
+      </div>
+      
+      {/* Botões para abrir o modal */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <button onClick={() => { setTransactionType('entrada'); setIsModalOpen(true); }} className="py-3 px-6 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors text-lg">
+          + Nova Entrada
+        </button>
+        <button onClick={() => { setTransactionType('gasto'); setIsModalOpen(true); }} className="py-3 px-6 bg-stone-400 text-stone-800 font-semibold rounded-lg shadow-md hover:bg-stone-500 transition-colors text-lg">
+          + Novo Gasto
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Painel de Entradas */}
+        <div className="bg-white p-6 rounded-xl shadow-md overflow-hidden">
+          <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Entradas</h3>
+          {entradas.length === 0 ? <p className="text-stone-500">Nenhuma entrada registada.</p> : (
+            <ul className="space-y-3">
+              {entradas.map(item => (
+                <li key={item.id} className="p-3 bg-green-50 rounded-lg flex justify-between items-center border border-green-200">
+                  <div>
+                    <p className="font-semibold text-stone-800">{item.description}</p>
+                    <p className="text-sm text-stone-500">{item.date}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <p className="font-bold text-green-600">+ R$ {parseFloat(item.value).toFixed(2)}</p>
+                    <button onClick={() => handleDeleteTransaction(item.id, 'entrada')} className="text-stone-400 hover:text-red-600 transition-colors">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd"></path></svg>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        
+        {/* Painel de Gastos */}
+        <div className="bg-white p-6 rounded-xl shadow-md overflow-hidden">
+          <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Gastos</h3>
+          {gastos.length === 0 ? <p className="text-stone-500">Nenhum gasto registado.</p> : (
+            <ul className="space-y-3">
+              {gastos.map(item => (
+                <li key={item.id} className="p-3 bg-red-50 rounded-lg flex justify-between items-center border border-red-200">
+                  <div>
+                    <p className="font-semibold text-stone-800">{item.description}</p>
+                    <p className="text-sm text-stone-500">{item.date}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <p className="font-bold text-red-600">- R$ {parseFloat(item.value).toFixed(2)}</p>
+                    <button onClick={() => handleDeleteTransaction(item.id, 'gasto')} className="text-stone-400 hover:text-red-600 transition-colors">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd"></path></svg>
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      
+      {/* Modal para adicionar transação */}
+      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Adicionar ${transactionType === 'entrada' ? 'Entrada' : 'Gasto'}`}>
+        <form onSubmit={handleAddTransaction} className="space-y-4">
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-stone-700">Descrição</label>
+            <input
+              type="text"
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              placeholder="Ex: Pagamento Cliente X"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="value" className="block text-sm font-medium text-stone-700">Valor (R$)</label>
+            <input
+              type="number"
+              id="value"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              placeholder="Ex: 500.00"
+              step="0.01"
+              required
+            />
+          </div>
+          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+            Adicionar
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
 };
 
-// --- Módulo de Dashboard ---
-dashboardModule.init = () => {
-dashboardModule.fetchDashboardData();
-document.getElementById('applyFilterBtn').addEventListener('click', dashboardModule.handleFilter);
-document.getElementById('clearFilterBtn').addEventListener('click', dashboardModule.handleClearFilter);
+// === Componente para a Aba de Serviços e Planos ===
+const ServicosPlanos = ({ userId, isAuthReady }) => {
+  const [servicos, setServicos] = useState([]);
+  const [servicosAvulsos, setServicosAvulsos] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newPlanName, setNewPlanName] = useState('');
+  const [newPlanPrice, setNewPlanPrice] = useState('');
+  const [newPlanDescription, setNewPlanDescription] = useState('');
+
+  // Listener do Firestore
+  useEffect(() => {
+    if (!db || !userId || !isAuthReady) return;
+
+    const servicosRef = collection(db, 'artifacts', appId, 'users', userId, 'planos');
+    const unsubscribe = onSnapshot(servicosRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setServicos(data);
+    }, (error) => { console.error("Erro ao carregar planos:", error); });
+    
+    // Supondo que serviços avulsos são estáticos ou de uma coleção separada
+    // const servicosAvulsosRef = ...
+    // ...
+    
+    return () => unsubscribe();
+  }, [userId, isAuthReady]);
+
+  const handleAddPlan = async (e) => {
+    e.preventDefault();
+    if (newPlanName && newPlanPrice) {
+      const planoData = {
+        name: newPlanName,
+        price: newPlanPrice,
+        description: newPlanDescription,
+      };
+
+      try {
+        const collectionRef = collection(db, 'artifacts', appId, 'users', userId, 'planos');
+        await setDoc(doc(collectionRef), planoData);
+        setNewPlanName('');
+        setNewPlanPrice('');
+        setNewPlanDescription('');
+        setIsModalOpen(false);
+      } catch (error) {
+        console.error("Erro ao adicionar plano:", error);
+      }
+    }
+  };
+
+  return (
+    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
+      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">💼 Serviços e Planos</h2>
+      <button onClick={() => setIsModalOpen(true)} className="mb-4 w-full py-2 px-4 bg-[#6A5A4A] text-white rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+        + Adicionar Novo Plano
+      </button>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+        {servicos.length === 0 ? <p className="text-stone-500">Nenhum plano registado.</p> : servicos.map(plano => (
+          <div key={plano.id} className="bg-white p-6 rounded-xl shadow-lg border border-stone-200">
+            <h3 className="text-2xl font-bold mb-2 text-[#5E4D40]">{plano.name}</h3>
+            <p className="text-xl font-bold text-[#6A5A4A] mb-2">R$ {plano.price}</p>
+            <p className="text-sm text-stone-500">{plano.description}</p>
+          </div>
+        ))}
+      </div>
+      
+      <div className="bg-white p-6 rounded-xl shadow-md border border-stone-200">
+        <h3 className="text-xl font-semibold mb-2 text-[#5E4D40]">Serviços Avulsos</h3>
+        <p className="text-sm text-stone-500">Esta secção não é persistente no momento, mas poderia ser adicionada à base de dados.</p>
+        <ul className="list-disc list-inside space-y-1 text-stone-700">
+          {servicosAvulsos.map((servico, index) => (
+            <li key={index}>{servico}</li>
+          ))}
+        </ul>
+      </div>
+
+      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Novo Plano">
+        <form onSubmit={handleAddPlan} className="space-y-4">
+          <div>
+            <label htmlFor="newPlanName" className="block text-sm font-medium text-stone-700">Nome do Plano</label>
+            <input
+              type="text"
+              id="newPlanName"
+              value={newPlanName}
+              onChange={(e) => setNewPlanName(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="newPlanPrice" className="block text-sm font-medium text-stone-700">Preço (R$)</label>
+            <input
+              type="text"
+              id="newPlanPrice"
+              value={newPlanPrice}
+              onChange={(e) => setNewPlanPrice(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              placeholder="Ex: XXX"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="newPlanDescription" className="block text-sm font-medium text-stone-700">Descrição</label>
+            <textarea
+              id="newPlanDescription"
+              value={newPlanDescription}
+              onChange={(e) => setNewPlanDescription(e.target.value)}
+              rows="3"
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+            ></textarea>
+          </div>
+          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+            Adicionar Plano
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
 };
 
-dashboardModule.fetchDashboardData = (startDate = null, endDate = null) => {
-if (!userId) return;
-toggleLoader('loading-dashboard-container', true);
-const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-let q = query(transactionsRef);
+// === Componente para a Aba de Agenda com Calendário ===
+const Agenda = ({ userId, isAuthReady }) => {
+  const [agenda, setAgenda] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newEvent, setNewEvent] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    time: '',
+    serviceType: '',
+    location: ''
+  });
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-if (startDate && endDate) {
-const start = new Date(startDate);
-const end = new Date(endDate);
-end.setDate(end.getDate() + 1); // Inclui o dia final
-q = query(transactionsRef, where('timestamp', '>=', start), where('timestamp', '<', end));
-}
+  // Listener do Firestore
+  useEffect(() => {
+    if (!db || !userId || !isAuthReady) return;
 
-onSnapshot(q, (snapshot) => {
-let totalReceitas = 0;
-let totalDespesas = 0;
-let transactions = [];
+    const agendaRef = collection(db, 'artifacts', appId, 'users', userId, 'agenda');
+    const unsubscribe = onSnapshot(agendaRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAgenda(data);
+    }, (error) => { console.error("Erro ao carregar agenda:", error); });
 
-snapshot.docs.forEach(doc => {
-const data = doc.data();
-transactions.push(data);
-if (data.tipo === 'receita') {
-totalReceitas += data.valor;
-} else {
-totalDespesas += data.valor;
-}
-});
+    return () => unsubscribe();
+  }, [userId, isAuthReady]);
 
-const saldo = totalReceitas - totalDespesas;
-document.getElementById('saldo-total-dashboard').textContent = formatCurrency(saldo);
-document.getElementById('total-receitas-dashboard').textContent = formatCurrency(totalReceitas);
-document.getElementById('total-despesas-dashboard').textContent = formatCurrency(totalDespesas);
+  const getMonthDays = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const days = [];
+    
+    const firstDayOfWeek = firstDay.getDay();
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      days.push(null);
+    }
+    
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, month, d));
+    }
+    return days;
+  };
+  
+  const daysInMonth = getMonthDays(currentDate);
 
-// Exibir últimos 5 lançamentos
-const recentTransactions = transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()).slice(0, 5);
-dashboardModule.renderTransactions(recentTransactions);
+  const handleAddEvent = async (e) => {
+    e.preventDefault();
+    const eventData = {
+      ...newEvent,
+    };
+    try {
+      const collectionRef = collection(db, 'artifacts', appId, 'users', userId, 'agenda');
+      await setDoc(doc(collectionRef), eventData);
+      setIsModalOpen(false);
+      setNewEvent({ date: new Date().toISOString().slice(0, 10), time: '', serviceType: '', location: '' });
+    } catch (error) {
+      console.error("Erro ao adicionar evento:", error);
+    }
+  };
+  
+  const hasEvent = (date) => {
+    return agenda.some(event => {
+      const eventDate = new Date(event.date);
+      return eventDate.toDateString() === date.toDateString();
+    });
+  };
+  
+  const getEventsForDay = (date) => {
+    return agenda.filter(event => {
+      const eventDate = new Date(event.date);
+      return eventDate.toDateString() === date.toDateString();
+    });
+  };
+  
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+  
+  const handlePreviousMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
 
-// Atualiza o gráfico
-dashboardModule.updateChart(transactions);
-toggleLoader('loading-dashboard-container', false);
-}, (error) => {
-console.error("Erro ao buscar dados do dashboard:", error);
-showMessage('Erro ao carregar dados do dashboard.', true);
-toggleLoader('loading-dashboard-container', false);
-});
+  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  return (
+    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
+      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">📅 Agenda</h2>
+      
+      <div className="bg-white p-6 rounded-xl shadow-lg border border-stone-200">
+        <div className="flex justify-between items-center mb-4">
+          <button onClick={handlePreviousMonth} className="p-2 rounded-full hover:bg-stone-200 transition-colors">
+            <svg className="w-6 h-6 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+          </button>
+          <h3 className="text-xl font-semibold text-[#5E4D40]">{currentDate.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}</h3>
+          <button onClick={handleNextMonth} className="p-2 rounded-full hover:bg-stone-200 transition-colors">
+            <svg className="w-6 h-6 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-7 text-center text-sm font-semibold text-stone-500 mb-2">
+          {dayNames.map(day => <div key={day}>{day}</div>)}
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1">
+          {daysInMonth.map((day, index) => (
+            <div
+              key={index}
+              className={`p-2 h-20 border rounded-lg overflow-hidden relative cursor-pointer
+                ${day ? 'bg-stone-50 border-stone-200' : 'bg-transparent border-transparent'}
+                ${day && hasEvent(day) ? 'bg-[#ffedc0] border-[#FFD966]' : ''}`}
+              onClick={() => day && setIsModalOpen(true)}
+            >
+              <span className={`font-bold ${day ? 'text-stone-800' : 'text-stone-300'}`}>{day?.getDate()}</span>
+              {day && getEventsForDay(day).map(event => (
+                <div key={event.id} className="text-xs mt-1 truncate bg-stone-300 rounded px-1 text-stone-800">
+                  {event.serviceType}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <button onClick={() => setIsModalOpen(true)} className="mt-6 w-full py-2 px-4 bg-[#6A5A4A] text-white rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+        + Adicionar Evento
+      </button>
+
+      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Evento">
+        <form onSubmit={handleAddEvent} className="space-y-4">
+          <div>
+            <label htmlFor="date" className="block text-sm font-medium text-stone-700">Data</label>
+            <input
+              type="date"
+              id="date"
+              value={newEvent.date}
+              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="time" className="block text-sm font-medium text-stone-700">Horário</label>
+            <input
+              type="time"
+              id="time"
+              value={newEvent.time}
+              onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="serviceType" className="block text-sm font-medium text-stone-700">Tipo de Serviço</label>
+            <input
+              type="text"
+              id="serviceType"
+              value={newEvent.serviceType}
+              onChange={(e) => setNewEvent({ ...newEvent, serviceType: e.target.value })}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="location" className="block text-sm font-medium text-stone-700">Local</label>
+            <input
+              type="text"
+              id="location"
+              value={newEvent.location}
+              onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+            Adicionar Evento
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
 };
 
-dashboardModule.renderTransactions = (transactions) => {
-const list = document.getElementById('recent-transactions-list');
-list.innerHTML = '';
-if (transactions.length === 0) {
-list.innerHTML = '<p class="text-gray-500 text-center">Nenhum lançamento encontrado.</p>';
-return;
-}
+// === Componente para o Controle de Serviços ===
+const ControleServicos = ({ userId, isAuthReady }) => {
+  const [servicosEmAndamento, setServicosEmAndamento] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newServiceName, setNewServiceName] = useState('');
+  
+  // Listener do Firestore
+  useEffect(() => {
+    if (!db || !userId || !isAuthReady) return;
 
-transactions.forEach(t => {
-const transactionItem = document.createElement('div');
-const isReceita = t.tipo === 'receita';
-transactionItem.className = `p-4 rounded-xl flex justify-between items-center transition duration-300 transform hover:scale-105 ${isReceita ? 'bg-green-100 border-l-4 border-green-500' : 'bg-red-100 border-l-4 border-red-500'}`;
-transactionItem.innerHTML = `
-<div>
-<p class="font-bold text-gray-800">${t.descricao}</p>
-<p class="text-sm text-gray-500">${new Date(t.timestamp.toDate()).toLocaleDateString()}</p>
-</div>
-<span class="font-bold text-lg ${isReceita ? 'text-green-600' : 'text-red-600'}">
-${isReceita ? '+' : '-'} ${formatCurrency(t.valor)}
-</span>
-`;
-list.appendChild(transactionItem);
-});
+    const servicosRef = collection(db, 'artifacts', appId, 'users', userId, 'servicos');
+    const unsubscribe = onSnapshot(servicosRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setServicosEmAndamento(data);
+    }, (error) => { console.error("Erro ao carregar serviços:", error); });
+
+    return () => unsubscribe();
+  }, [userId, isAuthReady]);
+
+  const handleAddService = async (e) => {
+    e.preventDefault();
+    if (newServiceName) {
+      const newService = {
+        name: newServiceName,
+        status: 'Agendado',
+      };
+      try {
+        const collectionRef = collection(db, 'artifacts', appId, 'users', userId, 'servicos');
+        await setDoc(doc(collectionRef), newService);
+        setNewServiceName('');
+        setIsModalOpen(false);
+      } catch (error) {
+        console.error("Erro ao adicionar serviço:", error);
+      }
+    }
+  };
+
+  const handleUpdateStatus = async (id, newStatus) => {
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', userId, 'servicos', id);
+      await updateDoc(docRef, { status: newStatus });
+    } catch (error) {
+      console.error("Erro ao actualizar estado:", error);
+    }
+  };
+  
+  const handleDeleteService = async (id) => {
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'users', userId, 'servicos', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error("Erro ao eliminar serviço:", error);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Agendado': return 'bg-yellow-200 text-yellow-800 border-yellow-300';
+      case 'Em andamento': return 'bg-blue-200 text-blue-800 border-blue-300';
+      case 'Enviado para o cliente': return 'bg-purple-200 text-purple-800 border-purple-300';
+      case 'Aprovado pelo cliente': return 'bg-green-200 text-green-800 border-green-300';
+      case 'Concluído/Entregue': return 'bg-gray-200 text-gray-800 border-gray-300';
+      default: return 'bg-stone-200 text-stone-800';
+    }
+  };
+
+  return (
+    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
+      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">✅ Controlo de Serviços</h2>
+      <button onClick={() => setIsModalOpen(true)} className="mb-4 w-full py-2 px-4 bg-[#6A5A4A] text-white rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+        + Adicionar Novo Serviço
+      </button>
+      
+      <div className="bg-white p-6 rounded-xl shadow-md overflow-hidden">
+        {servicosEmAndamento.length === 0 ? <p className="text-stone-500">Nenhum serviço em andamento.</p> : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {servicosEmAndamento.map(service => (
+              <div key={service.id} className="p-4 bg-stone-50 rounded-lg border border-stone-200 flex flex-col justify-between shadow">
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusColor(service.status)}`}>
+                    {service.status}
+                  </span>
+                  <button onClick={() => handleDeleteService(service.id)} className="text-stone-400 hover:text-red-600 transition-colors">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd"></path></svg>
+                  </button>
+                </div>
+                <p className="text-lg font-bold text-stone-800 mb-2">{service.name}</p>
+                <div className="mt-auto">
+                  <select
+                    value={service.status}
+                    onChange={(e) => handleUpdateStatus(service.id, e.target.value)}
+                    className="w-full p-2 border rounded-lg bg-white text-stone-700 text-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+                  >
+                    <option value="Agendado">Agendado</option>
+                    <option value="Em andamento">Em andamento</option>
+                    <option value="Enviado para o cliente">Enviado para o cliente</option>
+                    <option value="Aprovado pelo cliente">Aprovado pelo cliente</option>
+                    <option value="Concluído/Entregue">Concluído/Entregue</option>
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Novo Serviço">
+        <form onSubmit={handleAddService} className="space-y-4">
+          <div>
+            <label htmlFor="newServiceName" className="block text-sm font-medium text-stone-700">Nome do Serviço</label>
+            <input
+              type="text"
+              id="newServiceName"
+              value={newServiceName}
+              onChange={(e) => setNewServiceName(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
+            Adicionar Serviço
+          </button>
+        </form>
+      </Modal>
+    </div>
+  );
 };
 
-dashboardModule.updateChart = (transactions) => {
-const ctx = document.getElementById('balanceChart').getContext('2d');
-let balanceChart = Chart.getChart('balanceChart');
-if (balanceChart) {
-balanceChart.destroy();
-}
+// === Componente para o Painel de Administração ===
+const AdminPanel = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
 
-const dates = Array.from(new Set(transactions.map(t => t.timestamp.toDate().toLocaleDateString()))).sort((a, b) => new Date(a.split('/').reverse().join('-')) - new Date(b.split('/').reverse().join('-')));
-const cumulativeBalance = {};
-let currentBalance = 0;
+  const handleRegisterUser = async (e) => {
+    e.preventDefault();
+    if (!email || !password) return;
 
-transactions.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()).forEach(t => {
-if (t.tipo === 'receita') {
-currentBalance += t.valor;
-} else {
-currentBalance -= t.valor;
-}
-cumulativeBalance[t.timestamp.toDate().toLocaleDateString()] = currentBalance;
-});
+    setIsRegistering(true);
+    setMessage('');
 
-const dataPoints = dates.map(date => cumulativeBalance[date] || 0);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile');
+      await setDoc(userDocRef, {
+        email: user.email,
+        createdAt: new Date().toISOString()
+      });
 
-balanceChart = new Chart(ctx, {
-type: 'line',
-data: {
-labels: dates,
-datasets: [{
-label: 'Saldo Acumulado (R$)',
-data: dataPoints,
-borderColor: '#4b3e34',
-backgroundColor: 'rgba(75, 62, 52, 0.1)',
-tension: 0.1,
-fill: true
-}]
-},
-options: {
-responsive: true,
-maintainAspectRatio: false,
-scales: {
-y: {
-beginAtZero: true
-}
-}
-}
-});
+      setMessage(`Utilizador ${email} registado com sucesso!`);
+      setEmail('');
+      setPassword('');
+    } catch (error) {
+      console.error("Erro ao registar utilizador:", error);
+      setMessage(`Erro ao registar: ${error.message}`);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
+      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">🔑 Painel de Administração</h2>
+      <div className="bg-white p-6 rounded-xl shadow-md border border-stone-200">
+        <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Registar Novo Utilizador</h3>
+        <form onSubmit={handleRegisterUser} className="space-y-4">
+          <div>
+            <label htmlFor="new-user-email" className="block text-sm font-medium text-stone-700">E-mail</label>
+            <input
+              type="email"
+              id="new-user-email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="new-user-password" className="block text-sm font-medium text-stone-700">Senha</label>
+            <input
+              type="password"
+              id="new-user-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors"
+            disabled={isRegistering}
+          >
+            {isRegistering ? 'A registar...' : 'Registar Utilizador'}
+          </button>
+        </form>
+        {message && <p className={`mt-4 text-sm ${message.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{message}</p>}
+      </div>
+    </div>
+  );
 };
 
-dashboardModule.handleFilter = () => {
-const startDate = document.getElementById('startDate').value;
-const endDate = document.getElementById('endDate').value;
-if (!startDate || !endDate) {
-showMessage('Por favor, selecione as duas datas.', true);
-return;
-}
-if (new Date(startDate) > new Date(endDate)) {
-showMessage('A Data Inicial não pode ser posterior à Data Final.', true);
-return;
-}
-dashboardModule.fetchDashboardData(startDate, endDate);
-showMessage('Filtro aplicado com sucesso!', false);
+// === Componente Principal do Aplicativo ===
+const App = () => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [currentTab, setCurrentTab] = useState('gastos');
+  const [isCustomAdmin, setIsCustomAdmin] = useState(false);
+
+  // Inicialização do Firebase e listener de autenticação
+  useEffect(() => {
+    const initFirebase = async () => {
+      if (!app) {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+      }
+      
+      const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          setCurrentUser(user);
+          // Verifica se o usuário é o admin padrão com base no email
+          if (user.email === 'admin@vux.com') {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } else {
+          setCurrentUser(null);
+          setIsAdmin(false);
+        }
+        setIsAuthReady(true);
+      });
+      
+      // Tentativa de login automático se houver um token
+      if (initialAuthToken) {
+        try {
+          await signInWithCustomToken(auth, initialAuthToken);
+        } catch (error) {
+          console.error("Erro na autenticação inicial:", error);
+        }
+      } else {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            console.error("Erro na autenticação anônima:", error);
+          }
+      }
+      return () => unsubscribeAuth();
+    };
+    initFirebase();
+  }, []);
+
+  const login = async (loginId, password) => {
+    setIsAuthenticating(true);
+    setLoginError('');
+    setIsCustomAdmin(false); // Resetar o estado de admin personalizado
+
+    if (loginId === 'Admin.Vux' && password === '1234') {
+      try {
+        await signInAnonymously(auth);
+        setIsCustomAdmin(true);
+        setIsAdmin(true); // Definir o estado de admin
+      } catch (error) {
+        console.error("Erro no login Admin:", error);
+        setLoginError('Não foi possível fazer o login de administrador.');
+      }
+    } else if (loginId.includes('@')) { // Verifica se o login parece um e-mail
+      try {
+        await signInWithEmailAndPassword(auth, loginId, password);
+        // O onAuthStateChanged tratará de definir o currentUser e o isAdmin
+      } catch (error) {
+        console.error("Erro no login:", error);
+        setLoginError('Login ou senha incorretos.');
+      }
+    } else {
+      setLoginError('O login deve ser um endereço de e-mail válido ou "Admin.Vux".');
+    }
+    setIsAuthenticating(false);
+  };
+
+  const logout = async () => {
+    try {
+      if (isCustomAdmin) {
+        await signOut(auth); // Sair do modo anónimo
+        setIsCustomAdmin(false);
+      } else {
+        await signOut(auth);
+      }
+    } catch (error) {
+      console.error("Erro no logout:", error);
+    }
+  };
+
+  const renderTabContent = () => {
+    if (!isAuthReady) return null;
+    
+    // Renderiza a tela de login se não houver um utilizador ou um admin personalizado
+    if (!currentUser && !isCustomAdmin) {
+      return <LoginScreen login={login} loginError={loginError} isAuthenticating={isAuthenticating} />;
+    }
+    
+    // Fornece um userId para o admin personalizado ou para o utilizador autenticado
+    const userId = isCustomAdmin ? 'admin_vux' : currentUser?.uid;
+    
+    switch (currentTab) {
+      case 'gastos':
+        return <GastosEntradas userId={userId} isAuthReady={isAuthReady} />;
+      case 'servicos':
+        return <ServicosPlanos userId={userId} isAuthReady={isAuthReady} />;
+      case 'agenda':
+        return <Agenda userId={userId} isAuthReady={isAuthReady} />;
+      case 'controle':
+        return <ControleServicos userId={userId} isAuthReady={isAuthReady} />;
+      case 'admin':
+        return <AdminPanel />;
+      default:
+        return null;
+    }
+  };
+  
+  // Condição para mostrar o menu e o conteúdo principal
+  if (!isAuthReady || (!currentUser && !isCustomAdmin)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-200 font-inter">
+        {renderTabContent()}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen flex bg-stone-200 font-inter">
+      <div className="fixed top-0 left-0 p-4 z-50">
+        <button onClick={() => setShowMenu(!showMenu)} className="p-2 bg-stone-400 rounded-full shadow-lg hover:bg-stone-500 transition-colors">
+          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+          </svg>
+        </button>
+      </div>
+
+      {showMenu && <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowMenu(false)}></div>}
+
+      <aside className={`fixed inset-y-0 left-0 bg-[#5E4D40] text-white w-64 p-4 transform ${showMenu ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50`}>
+        <div className="flex items-center mb-8 justify-between">
+          <div className="flex items-center">
+            <span className="text-4xl font-black text-white">VUX</span>
+            <span className="text-4xl text-stone-300 font-extrabold -ml-1">.</span>
+          </div>
+          <button onClick={() => setShowMenu(false)} className="text-stone-300 hover:text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <nav>
+          <ul className="space-y-2">
+            <li>
+              <button 
+                onClick={() => { setCurrentTab('gastos'); setShowMenu(false); }}
+                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'gastos' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
+              >
+                📊 Gastos e Entradas
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { setCurrentTab('servicos'); setShowMenu(false); }}
+                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'servicos' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
+              >
+                💼 Serviços e Planos
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { setCurrentTab('agenda'); setShowMenu(false); }}
+                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'agenda' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
+              >
+                📅 Agenda
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { setCurrentTab('controle'); setShowMenu(false); }}
+                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'controle' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
+              >
+                ✅ Controlo de Serviços
+              </button>
+            </li>
+            {isAdmin && (
+              <li>
+                <button 
+                  onClick={() => { setCurrentTab('admin'); setShowMenu(false); }}
+                  className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'admin' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
+                >
+                  ⚙️ Painel de Admin
+                </button>
+              </li>
+            )}
+          </ul>
+        </nav>
+        <div className="absolute bottom-4 left-4 right-4">
+          <button onClick={logout} className="w-full py-2 px-4 bg-stone-400 text-stone-800 font-semibold rounded-lg shadow-md hover:bg-stone-500 transition-colors">
+            Sair
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 p-8 pt-20 max-w-7xl mx-auto transition-all duration-300 ease-in-out md:ml-64">
+        {renderTabContent()}
+      </main>
+    </div>
+  );
 };
 
-dashboardModule.handleClearFilter = () => {
-document.getElementById('startDate').value = '';
-document.getElementById('endDate').value = '';
-dashboardModule.fetchDashboardData();
-showMessage('Filtro de período limpo.', false);
-};
-
-
-// --- Módulo de Finanças (Gastos e Entradas) ---
-financeModule.init = () => {
-financeModule.fetchFinanceData();
-document.getElementById('add-receita-btn').addEventListener('click', financeModule.addReceita);
-document.getElementById('add-despesa-btn').addEventListener('click', financeModule.addDespesa);
-document.getElementById('export-btn').addEventListener('click', financeModule.exportToCSV);
-};
-
-financeModule.fetchFinanceData = () => {
-if (!userId) return;
-toggleLoader('loading-container', true);
-const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-const q = query(transactionsRef);
-
-onSnapshot(q, (snapshot) => {
-let totalReceitas = 0;
-let totalDespesas = 0;
-const transactions = [];
-snapshot.docs.forEach(doc => {
-const data = doc.data();
-transactions.push({ ...data, id: doc.id });
-if (data.tipo === 'receita') {
-totalReceitas += data.valor;
-} else {
-totalDespesas += data.valor;
-}
-});
-
-const saldo = totalReceitas - totalDespesas;
-document.getElementById('saldo-total').textContent = formatCurrency(saldo);
-financeModule.renderFinanceList(transactions);
-toggleLoader('loading-container', false);
-}, (error) => {
-console.error("Erro ao buscar dados de finanças:", error);
-showMessage('Erro ao carregar dados de finanças.', true);
-toggleLoader('loading-container', false);
-});
-};
-
-financeModule.renderFinanceList = (transactions) => {
-const list = document.getElementById('data-list');
-list.innerHTML = '';
-if (transactions.length === 0) {
-list.innerHTML = '<p class="text-gray-500 text-center">Nenhum lançamento encontrado.</p>';
-return;
-}
-
-transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()).forEach(t => {
-const transactionItem = document.createElement('div');
-transactionItem.className = `p-4 rounded-xl flex justify-between items-center transition duration-300 transform hover:scale-105 ${t.tipo === 'receita' ? 'bg-green-100 border-l-4 border-green-500' : 'bg-red-100 border-l-4 border-red-500'}`;
-transactionItem.innerHTML = `
-<div>
-<p class="font-bold text-gray-800">${t.descricao}</p>
-<p class="text-sm text-gray-500">${new Date(t.timestamp.toDate()).toLocaleDateString()}</p>
-</div>
-<div class="flex items-center space-x-2">
-<span class="font-bold text-lg ${t.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}">
-${t.tipo === 'receita' ? '+' : '-'} ${formatCurrency(t.valor)}
-</span>
-<button class="delete-btn text-gray-400 hover:text-red-500" data-id="${t.id}">
-<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-</svg>
-</button>
-</div>
-`;
-list.appendChild(transactionItem);
-});
-
-document.querySelectorAll('.delete-btn').forEach(btn => {
-btn.addEventListener('click', financeModule.deleteTransaction);
-});
-};
-
-financeModule.addReceita = async () => {
-if (!userId) {
-showMessage('Faça login para adicionar lançamentos.', true);
-return;
-}
-const descricao = document.getElementById('receita-descricao').value;
-const valor = parseFloat(document.getElementById('receita-valor').value);
-if (descricao && valor) {
-try {
-const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
-await setDoc(docRef, {
-descricao,
-valor,
-tipo: 'receita',
-timestamp: serverTimestamp()
-});
-showMessage('Entrada adicionada com sucesso!', false);
-document.getElementById('receita-descricao').value = '';
-document.getElementById('receita-valor').value = '';
-} catch (e) {
-console.error("Erro ao adicionar documento: ", e);
-showMessage('Erro ao adicionar entrada.', true);
-}
-} else {
-showMessage('Preencha todos os campos para a entrada.', true);
-}
-};
-
-financeModule.addDespesa = async () => {
-if (!userId) {
-showMessage('Faça login para adicionar lançamentos.', true);
-return;
-}
-const descricao = document.getElementById('despesa-descricao').value;
-const valor = parseFloat(document.getElementById('despesa-valor').value);
-if (descricao && valor) {
-try {
-const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
-await setDoc(docRef, {
-descricao,
-valor,
-tipo: 'despesa',
-timestamp: serverTimestamp()
-});
-showMessage('Saída adicionada com sucesso!', false);
-document.getElementById('despesa-descricao').value = '';
-document.getElementById('despesa-valor').value = '';
-} catch (e) {
-console.error("Erro ao adicionar documento: ", e);
-showMessage('Erro ao adicionar saída.', true);
-}
-} else {
-showMessage('Preencha todos os campos para a saída.', true);
-}
-};
-
-financeModule.deleteTransaction = async (event) => {
-if (!userId) return;
-const docId = event.currentTarget.getAttribute('data-id');
-if (docId) {
-try {
-const docRef = doc(db, `artifacts/${appId}/users/${userId}/transactions`, docId);
-await deleteDoc(docRef);
-showMessage('Lançamento excluído com sucesso!', false);
-} catch (e) {
-console.error("Erro ao excluir documento: ", e);
-showMessage('Erro ao excluir lançamento.', true);
-}
-}
-};
-
-financeModule.exportToCSV = () => {
-if (!userId) {
-showMessage('Faça login para exportar dados.', true);
-return;
-}
-const transactionsRef = collection(db, `artifacts/${appId}/users/${userId}/transactions`);
-const q = query(transactionsRef);
-
-getDocs(q).then(snapshot => {
-const transactions = snapshot.docs.map(doc => doc.data());
-if (transactions.length === 0) {
-showMessage('Nenhum dado para exportar.', true);
-return;
-}
-
-const headers = ['Descrição', 'Tipo', 'Valor', 'Data'];
-const rows = transactions.map(t => [
-t.descricao,
-t.tipo,
-t.valor,
-t.timestamp.toDate().toLocaleDateString()
-]);
-
-let csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.map(e => e.join(',')).join("\n");
-const encodedUri = encodeURI(csvContent);
-const link = document.createElement("a");
-link.setAttribute("href", encodedUri);
-link.setAttribute("download", "lancamentos_vux.csv");
-document.body.appendChild(link);
-link.click();
-document.body.removeChild(link);
-showMessage('Dados exportados com sucesso!', false);
-}).catch(e => {
-console.error("Erro ao exportar dados: ", e);
-showMessage('Erro ao exportar dados.', true);
-});
-};
-
-// --- Módulo de Serviços ---
-servicesModule.init = () => {
-servicesModule.fetchServices();
-document.getElementById('add-service-btn').addEventListener('click', servicesModule.addService);
-// Event listeners para os botões do modal de job
-document.getElementById('cancel-job-btn').addEventListener('click', () => {
-document.getElementById('add-job-modal').classList.add('hidden');
-servicesModule.selectedServiceForJob = null;
-});
-document.getElementById('save-job-btn').addEventListener('click', servicesModule.addServiceJob);
-};
-
-servicesModule.fetchServices = () => {
-if (!userId) return;
-toggleLoader('loading-services-container', true);
-const servicesRef = collection(db, `artifacts/${appId}/users/${userId}/services`);
-const q = query(servicesRef);
-
-onSnapshot(q, (snapshot) => {
-const services = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-servicesModule.renderServices(services);
-// Preenche o select do modal de evento na agenda
-const serviceSelect = document.getElementById('event-service-type');
-serviceSelect.innerHTML = '<option value="">-- Tipo de Serviço --</option>';
-services.forEach(service => {
-const option = document.createElement('option');
-option.value = service.id;
-option.textContent = service.nome;
-serviceSelect.appendChild(option);
-});
-toggleLoader('loading-services-container', false);
-
-// Carrega os serviços para a tela de controle
-servicesModule.fetchServiceControl();
-
-}, (error) => {
-console.error("Erro ao buscar serviços:", error);
-showMessage('Erro ao carregar serviços.', true);
-toggleLoader('loading-services-container', false);
-});
-};
-
-servicesModule.renderServices = (services) => {
-const list = document.getElementById('services-list');
-list.innerHTML = '';
-if (services.length === 0) {
-list.innerHTML = '<p class="text-gray-500 text-center">Nenhum serviço cadastrado.</p>';
-return;
-}
-services.forEach(s => {
-const serviceItem = document.createElement('div');
-serviceItem.className = `bg-white p-6 rounded-2xl shadow-lg border-l-4 border-gray-400 transition duration-300 transform hover:scale-105 hover:shadow-xl`;
-serviceItem.innerHTML = `
-<h4 class="text-lg font-bold text-gray-900">${s.nome}</h4>
-<p class="text-gray-600 mt-2 text-sm">${s.descricao}</p>
-<p class="font-semibold text-gray-800 mt-2">${formatCurrency(s.valor)}</p>
-<p class="text-sm text-gray-500 mt-1">Tipo: ${s.tipo}</p>
-<button class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700" data-id="${s.id}" data-name="${s.nome}" data-price="${s.valor}">
-Iniciar Serviço
-</button>
-`;
-list.appendChild(serviceItem);
-});
-document.querySelectorAll('#services-list button').forEach(btn => {
-btn.addEventListener('click', servicesModule.openAddJobModal);
-});
-};
-
-servicesModule.addService = async () => {
-if (!userId) {
-showMessage('Faça login para cadastrar serviços.', true);
-return;
-}
-const nome = document.getElementById('service-name').value;
-const descricao = document.getElementById('service-description').value;
-const tipo = document.getElementById('service-type').value;
-const valor = parseFloat(document.getElementById('service-price').value);
-
-if (nome && descricao && tipo && !isNaN(valor)) {
-try {
-await addDoc(collection(db, `artifacts/${appId}/users/${userId}/services`), {
-nome,
-descricao,
-tipo,
-valor,
-createdAt: serverTimestamp()
-});
-showMessage('Serviço cadastrado com sucesso!', false);
-document.getElementById('service-name').value = '';
-document.getElementById('service-description').value = '';
-document.getElementById('service-type').value = '';
-document.getElementById('service-price').value = '';
-} catch (e) {
-console.error("Erro ao adicionar serviço: ", e);
-showMessage('Erro ao cadastrar serviço.', true);
-}
-} else {
-showMessage('Preencha todos os campos para o serviço.', true);
-}
-};
-
-servicesModule.openAddJobModal = (event) => {
-servicesModule.selectedServiceForJob = {
-id: event.currentTarget.dataset.id,
-name: event.currentTarget.dataset.name,
-price: parseFloat(event.currentTarget.dataset.price)
-};
-document.getElementById('job-modal-service-name').textContent = `Serviço: ${servicesModule.selectedServiceForJob.name}`;
-document.getElementById('add-job-modal').classList.remove('hidden');
-document.getElementById('job-description').value = '';
-};
-
-servicesModule.addServiceJob = async () => {
-if (!userId || !servicesModule.selectedServiceForJob) return;
-const jobDescription = document.getElementById('job-description').value;
-
-if (jobDescription) {
-try {
-const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/serviceJobs`));
-await setDoc(docRef, {
-serviceId: servicesModule.selectedServiceForJob.id,
-serviceName: servicesModule.selectedServiceForJob.name,
-clientName: jobDescription,
-status: 'Em Andamento',
-price: servicesModule.selectedServiceForJob.price,
-timestamp: serverTimestamp()
-});
-showMessage('Serviço iniciado com sucesso!', false);
-document.getElementById('add-job-modal').classList.add('hidden');
-servicesModule.selectedServiceForJob = null;
-} catch (e) {
-console.error("Erro ao adicionar job: ", e);
-showMessage('Erro ao iniciar o serviço.', true);
-}
-} else {
-showMessage('O nome do cliente/job é obrigatório.', true);
-}
-};
-
-servicesModule.fetchServiceControl = () => {
-if (!userId) return;
-toggleLoader('loading-service-control-container', true);
-const jobsRef = collection(db, `artifacts/${appId}/users/${userId}/serviceJobs`);
-const q = query(jobsRef);
-onSnapshot(q, (snapshot) => {
-const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-servicesModule.renderServiceControl(jobs);
-toggleLoader('loading-service-control-container', false);
-}, (error) => {
-console.error("Erro ao buscar controle de serviços:", error);
-showMessage('Erro ao carregar o controle de serviços.', true);
-toggleLoader('loading-service-control-container', false);
-});
-};
-
-servicesModule.renderServiceControl = (jobs) => {
-const list = document.getElementById('service-control-list');
-list.innerHTML = '';
-if (jobs.length === 0) {
-list.innerHTML = '<p class="text-gray-500 text-center">Nenhum serviço em andamento.</p>';
-return;
-}
-
-jobs.sort((a,b) => b.timestamp.toDate() - a.timestamp.toDate()).forEach(job => {
-let statusColor = '';
-let statusText = '';
-switch(job.status) {
-case 'Em Andamento':
-statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-500';
-statusText = 'Em Andamento';
-break;
-case 'Concluído':
-statusColor = 'bg-green-100 text-green-800 border-green-500';
-statusText = 'Concluído';
-break;
-case 'Cancelado':
-statusColor = 'bg-red-100 text-red-800 border-red-500';
-statusText = 'Cancelado';
-break;
-default:
-statusColor = 'bg-gray-100 text-gray-800 border-gray-500';
-statusText = 'Desconhecido';
-}
-
-const jobItem = document.createElement('div');
-jobItem.className = `p-4 rounded-xl shadow-md border-l-4 ${statusColor} flex justify-between items-center transition duration-300 transform hover:scale-105`;
-jobItem.innerHTML = `
-<div>
-<p class="font-bold text-gray-900">${job.clientName}</p>
-<p class="text-sm text-gray-700 mt-1">${job.serviceName}</p>
-<p class="text-xs text-gray-500 mt-1">Status: <span class="font-semibold">${statusText}</span></p>
-</div>
-<div class="flex space-x-2">
-<button class="update-status-btn bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg text-xs" data-id="${job.id}" data-status="Concluído">Concluir</button>
-<button class="update-status-btn bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg text-xs" data-id="${job.id}" data-status="Cancelado">Cancelar</button>
-<button class="delete-job-btn text-gray-400 hover:text-red-500 p-2 rounded-lg" data-id="${job.id}">
-<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-</svg>
-</button>
-</div>
-`;
-list.appendChild(jobItem);
-});
-
-document.querySelectorAll('.update-status-btn').forEach(btn => {
-btn.addEventListener('click', servicesModule.updateJobStatus);
-});
-document.querySelectorAll('.delete-job-btn').forEach(btn => {
-btn.addEventListener('click', servicesModule.deleteJob);
-});
-};
-
-servicesModule.updateJobStatus = async (event) => {
-if (!userId) return;
-const docId = event.currentTarget.dataset.id;
-const newStatus = event.currentTarget.dataset.status;
-try {
-const jobRef = doc(db, `artifacts/${appId}/users/${userId}/serviceJobs`, docId);
-await updateDoc(jobRef, { status: newStatus });
-
-// Se o status for 'Concluído', adiciona como uma receita
-if (newStatus === 'Concluído') {
-const jobDoc = await getDoc(jobRef);
-if (jobDoc.exists()) {
-const jobData = jobDoc.data();
-const financeDocRef = doc(collection(db, `artifacts/${appId}/users/${userId}/transactions`));
-await setDoc(financeDocRef, {
-descricao: `Receita do serviço: ${jobData.serviceName} - Cliente: ${jobData.clientName}`,
-valor: jobData.price,
-tipo: 'receita',
-timestamp: serverTimestamp()
-});
-showMessage('Serviço concluído e receita adicionada!', false);
-}
-} else {
-showMessage(`Status do serviço atualizado para "${newStatus}".`, false);
-}
-
-} catch (e) {
-console.error("Erro ao atualizar status do job:", e);
-showMessage('Erro ao atualizar status do serviço.', true);
-}
-};
-
-servicesModule.deleteJob = async (event) => {
-if (!userId) return;
-const docId = event.currentTarget.dataset.id;
-try {
-const jobRef = doc(db, `artifacts/${appId}/users/${userId}/serviceJobs`, docId);
-await deleteDoc(jobRef);
-showMessage('Serviço removido do controle.', false);
-} catch (e) {
-console.error("Erro ao remover job:", e);
-showMessage('Erro ao remover serviço do controle.', true);
-}
-};
-
-// --- Módulo de Agenda ---
-calendarModule.init = () => {
-calendarModule.currentDate = new Date();
-calendarModule.selectedDay = null;
-calendarModule.renderCalendar();
-calendarModule.fetchEvents();
-
-document.getElementById('prev-month-btn').addEventListener('click', calendarModule.prevMonth);
-document.getElementById('next-month-btn').addEventListener('click', calendarModule.nextMonth);
-document.getElementById('add-event-btn').addEventListener('click', calendarModule.openAddEventModal);
-document.getElementById('save-event-btn').addEventListener('click', calendarModule.saveEvent);
-document.getElementById('cancel-event-btn').addEventListener('click', calendarModule.closeAddEventModal);
-};
-
-calendarModule.renderCalendar = () => {
-const monthYearEl = document.getElementById('current-month-year');
-const calendarDaysEl = document.getElementById('calendar-days');
-const daysInMonth = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth() + 1, 0).getDate();
-const firstDayIndex = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth(), 1).getDay();
-
-monthYearEl.textContent = calendarModule.currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
-calendarDaysEl.innerHTML = '';
-
-for (let i = 0; i < firstDayIndex; i++) {
-const emptyDay = document.createElement('div');
-calendarDaysEl.appendChild(emptyDay);
-}
-
-for (let i = 1; i <= daysInMonth; i++) {
-const dayEl = document.createElement('div');
-dayEl.textContent = i;
-dayEl.className = 'calendar-day p-2 rounded-lg text-center cursor-pointer hover:bg-gray-200 transition-colors';
-const dayDate = new Date(calendarModule.currentDate.getFullYear(), calendarModule.currentDate.getMonth(), i);
-if (calendarModule.selectedDay && dayDate.toDateString() === calendarModule.selectedDay.toDateString()) {
-dayEl.classList.add('active');
-}
-
-dayEl.addEventListener('click', () => calendarModule.selectDay(dayDate));
-calendarDaysEl.appendChild(dayEl);
-}
-
-// Após renderizar o calendário, renderiza os eventos para o dia selecionado (se houver)
-calendarModule.renderEventsForSelectedDay();
-};
-
-calendarModule.selectDay = (date) => {
-calendarModule.selectedDay = date;
-const days = document.querySelectorAll('.calendar-day');
-days.forEach(day => day.classList.remove('active'));
-// Encontra e ativa o dia selecionado
-const dayEls = document.getElementById('calendar-days').children;
-const dayIndex = date.getDate() + (new Date(date.getFullYear(), date.getMonth(), 1).getDay()) - 1;
-if (dayEls[dayIndex]) {
-dayEls[dayIndex].classList.add('active');
-}
-
-// Exibe os eventos para o dia selecionado
-calendarModule.renderEventsForSelectedDay();
-};
-
-calendarModule.prevMonth = () => {
-calendarModule.currentDate.setMonth(calendarModule.currentDate.getMonth() - 1);
-calendarModule.renderCalendar();
-calendarModule.fetchEvents();
-};
-
-calendarModule.nextMonth = () => {
-calendarModule.currentDate.setMonth(calendarModule.currentDate.getMonth() + 1);
-calendarModule.renderCalendar();
-calendarModule.fetchEvents();
-};
-
-calendarModule.fetchEvents = () => {
-if (!userId) return;
-const eventsRef = collection(db, `artifacts/${appId}/users/${userId}/events`);
-const q = query(eventsRef);
-
-onSnapshot(q, (snapshot) => {
-calendarModule.events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-calendarModule.renderEventsForSelectedDay();
-}, (error) => {
-console.error("Erro ao buscar eventos:", error);
-showMessage('Erro ao carregar eventos da agenda.', true);
-});
-};
-calendarModule.renderEventsForSelectedDay = () => {
-const list = document.getElementById('events-list');
-const noEventsMessage = document.getElementById('no-events-message');
-list.innerHTML = '';
-if (!calendarModule.selectedDay) {
-noEventsMessage.classList.remove('hidden');
-return;
-}
-
-const eventsToday = calendarModule.events.filter(event => {
-const eventDate = event.date.toDate();
-return eventDate.toDateString() === calendarModule.selectedDay.toDateString();
-});
-
-if (eventsToday.length === 0) {
-noEventsMessage.classList.remove('hidden');
-} else {
-noEventsMessage.classList.add('hidden');
-eventsToday.sort((a,b) => a.time.localeCompare(b.time)).forEach(event => {
-const eventItem = document.createElement('div');
-eventItem.className = 'p-4 rounded-xl shadow-md border-l-4 border-indigo-500 bg-indigo-50 flex justify-between items-center transition duration-300 transform hover:scale-105';
-eventItem.innerHTML = `
-<div>
-<p class="font-bold text-gray-900">${event.title}</p>
-<p class="text-sm text-gray-700 mt-1">Horário: ${event.time}</p>
-<p class="text-xs text-gray-500 mt-1">Local: ${event.location || 'N/A'}</p>
-<p class="text-xs text-gray-500 mt-1">Serviço: ${event.serviceName || 'N/A'}</p>
-</div>
-<button class="delete-event-btn text-gray-400 hover:text-red-500 p-2 rounded-lg" data-id="${event.id}">
-<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-</svg>
-</button>
-`;
-list.appendChild(eventItem);
-});
-
-document.querySelectorAll('.delete-event-btn').forEach(btn => {
-btn.addEventListener('click', calendarModule.deleteEvent);
-});
-}
-};
-
-
-calendarModule.openAddEventModal = () => {
-document.getElementById('event-title').value = '';
-document.getElementById('event-date').value = calendarModule.selectedDay ? calendarModule.selectedDay.toISOString().substring(0, 10) : '';
-document.getElementById('event-time').value = '';
-document.getElementById('event-location').value = '';
-document.getElementById('event-service-type').value = '';
-document.getElementById('add-event-modal').classList.remove('hidden');
-};
-
-calendarModule.closeAddEventModal = () => {
-document.getElementById('add-event-modal').classList.add('hidden');
-};
-calendarModule.saveEvent = async () => {
-if (!userId) {
-showMessage('Faça login para salvar eventos.', true);
-return;
-}
-const title = document.getElementById('event-title').value;
-const date = document.getElementById('event-date').value;
-const time = document.getElementById('event-time').value;
-const location = document.getElementById('event-location').value;
-const serviceId = document.getElementById('event-service-type').value;
-const serviceName = document.getElementById('event-service-type').options[document.getElementById('event-service-type').selectedIndex].text;
-
-if (title && date) {
-try {
-const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/events`));
-await setDoc(docRef, {
-title,
-date: new Date(date),
-time,
-location,
-serviceId,
-serviceName,
-createdAt: serverTimestamp()
-});
-showMessage('Evento salvo com sucesso!', false);
-calendarModule.closeAddEventModal();
-} catch(e) {
-console.error("Erro ao salvar evento:", e);
-showMessage('Erro ao salvar o evento.', true);
-}
-} else {
-showMessage('Título e data são obrigatórios.', true);
-}
-};
-
-calendarModule.deleteEvent = async (event) => {
-if (!userId) return;
-const docId = event.currentTarget.dataset.id;
-try {
-const docRef = doc(db, `artifacts/${appId}/users/${userId}/events`, docId);
-await deleteDoc(docRef);
-showMessage('Evento excluído com sucesso.', false);
-} catch (e) {
-console.error("Erro ao excluir evento:", e);
-showMessage('Erro ao excluir o evento.', true);
-}
-};
-
-
-// --- Eventos da UI e Navegação ---
-document.getElementById('login-btn').addEventListener('click', authModule.handleLogin);
-
-logoutBtns.forEach(btn => {
-btn.addEventListener('click', authModule.handleLogout);
-});
-
-// Navegação da sidebar
-sidebarBtns.forEach(btn => {
-btn.addEventListener('click', () => {
-const targetTabId = btn.getAttribute('data-tab');
-document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
-document.getElementById(targetTabId).classList.remove('hidden');
-
-sidebarBtns.forEach(b => b.classList.remove('active'));
-btn.classList.add('active');
-
-// Esconde a sidebar em telas pequenas
-if (window.innerWidth < 1024) {
-sidebar.classList.add('-translate-x-full');
-}
-
-// Dispara a função init do módulo correspondente, caso ainda não tenha sido feito
-// Já fizemos isso em onAuthStateChanged, mas para garantir
-});
-});
-
-// Toggle do menu em mobile
-menuBtn.addEventListener('click', () => {
-sidebar.classList.remove('-translate-x-full');
-});
-
-closeMenuBtn.addEventListener('click', () => {
-sidebar.classList.add('-translate-x-full');
-});
-
-// Inicializa a aplicação
-window.onload = () => {
-authModule.setup();
-};
-
-</script>
-
-</body>
-</html>
+export default App;
