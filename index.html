@@ -1,490 +1,819 @@
-// O ponto de entrada para a sua aplicação React, adaptada para Supabase
-import React, { useState, useEffect } from 'react';
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VUX Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Fundo mais claro e profissional */
+        }
+        .vux-logo {
+            background-color: #4b3e34; /* Fundo escuro para contraste */
+            color: #d6cdc3; /* Cor do texto claro */
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sidebar-btn.active {
+            background-color: #2e2621; /* Cor de fundo mais escura para o botão ativo */
+            color: white;
+            border-left: 4px solid #d6cdc3; /* Linha de destaque para o item ativo */
+        }
+        .sidebar-btn:not(.active) {
+            border-left: 4px solid transparent;
+        }
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.5s ease-in-out;
+            opacity: 0;
+            visibility: hidden;
+        }
+        .message-box.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        /* Estilo para o loader */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4b3e34;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
 
-// Importação do Supabase - a nova API de base de dados
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    <!-- Caixa de Mensagem (substitui o alert()) -->
+    <div id="message-box" class="message-box"></div>
 
-// Função utilitária para converter a data do Supabase para uma string formatada
-const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return date.toLocaleDateString('pt-PT', options);
-};
+    <!-- Container principal da aplicação -->
+    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-4xl">
 
-// Componente de modal de confirmação para exclusão
-const ConfirmationModal = ({ message, onConfirm, onCancel }) => {
-    return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-11/12 md:w-1/3">
-                <p className="text-lg text-gray-800 mb-4 text-center">{message}</p>
-                <div className="flex justify-center space-x-4">
-                    <button
-                        onClick={onConfirm}
-                        className="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors"
-                    >
-                        Confirmar
-                    </button>
-                    <button
-                        onClick={onCancel}
-                        className="bg-gray-300 text-gray-800 px-6 py-2 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
-                    >
-                        Cancelar
-                    </button>
+        <!-- Tela de Autenticação (Login) -->
+        <div id="auth-view" class="space-y-6">
+            <div class="flex flex-col items-center">
+                <!-- Sua logo -->
+                <div class="vux-logo h-24 w-24 rounded-full mb-6 text-3xl shadow-md">
+                    VUX.
                 </div>
+                <h2 class="text-4xl font-bold text-gray-900 text-center"></h2>
+                <p class="text-gray-500 text-center mt-2"></p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">Utilizador</label>
+                    <input type="text" id="username" value="Admin" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="password" value="1234" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-[#4b3e34] focus:border-[#4b3e34] sm:text-base">
+                </div>
+                <div class="text-center text-red-500 font-medium" id="auth-error-message"></div>
+                <button id="login-btn" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-semibold text-white bg-[#4b3e34] hover:bg-[#5b4d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4b3e34] transition duration-300 ease-in-out transform hover:scale-105">
+                    Entrar
+                </button>
             </div>
         </div>
-    );
-};
 
-// Componente principal da aplicação
-export default function App() {
-    // Estados para gerir os dados da aplicação
-    const [supabase, setSupabase] = useState(null); // Cliente Supabase
-    const [userId, setUserId] = useState(null); // ID do utilizador (agora gerido pelo Supabase Auth)
-    const [receitas, setReceitas] = useState([]); // Array para receitas
-    const [despesas, setDespesas] = useState([]); // Array para despesas
-    const [isLoading, setIsLoading] = useState(true); // Estado de carregamento
-    const [isAddingEntry, setIsAddingEntry] = useState(false); // Estado para o formulário de adição
-    const [isEditingEntry, setIsEditingEntry] = useState(false); // Estado para o formulário de edição
-    const [currentEntry, setCurrentEntry] = useState(null); // Entrada selecionada para edição
-    const [formType, setFormType] = useState('receita'); // Tipo de formulário: 'receita' ou 'despesa'
-    const [formDescricao, setFormDescricao] = useState(''); // Descrição do formulário
-    const [formValor, setFormValor] = useState(''); // Valor do formulário
-    const [error, setError] = useState(null); // Mensagem de erro
-
-    // Estados para a modal de confirmação
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [entryToDelete, setEntryToDelete] = useState(null);
-
-    // Lida com erros de forma mais graciosa
-    const handleError = (err, message) => {
-        console.error(message, err);
-        setError(`${message}: ${err.message || err.toString()}`);
-    };
-
-    // Inicialização do Supabase e autenticação do utilizador
-    useEffect(() => {
-        try {
-            // Inicializa o cliente Supabase com os valores fornecidos
-            // ATENÇÃO: Os valores da URL e da chave anónima devem corresponder ao seu projeto Supabase.
-            const supabaseUrl = 'https://mpcjuzvbzoaonhjlclmg.supabase.co';
-            const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wY2p1enZiem9hb25oamxjbG1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDg4OTUsImV4cCI6MjA3MTEyNDg5NX0.Pz2HuzmfY9czU_ckXzKi2flNAS71p1sqpWBxBb2b4sI';
-            const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-            setSupabase(supabaseClient);
-
-            // Tenta iniciar sessão anonimamente para obter um ID de utilizador
-            const signInAnon = async () => {
-                const { data, error } = await supabaseClient.auth.signInAnonymously();
-                if (error) {
-                    handleError(error, 'Erro ao iniciar sessão anonimamente');
-                } else if (data.user) {
-                    setUserId(data.user.id);
-                } else {
-                    handleError(null, 'Não foi possível obter o ID do utilizador após o início de sessão');
-                }
-            };
-            signInAnon();
-
-        } catch (err) {
-            handleError(err, 'Erro ao inicializar Supabase');
-            setIsLoading(false);
-        }
-    }, []);
-
-    // Hook para carregar dados do Supabase e subscrever a atualizações em tempo real
-    useEffect(() => {
-        // Assegura que Supabase e o userId estão prontos antes de continuar
-        if (!supabase || !userId) {
-            return;
-        }
-
-        // ATENÇÃO: Certifique-se de que estas tabelas existem no seu projeto Supabase.
-        // Crie tabelas 'receitas' e 'despesas' com as colunas 'id', 'descricao', 'valor', 'created_at' e 'user_id'.
-        // É CRUCIAL configurar as políticas de RLS para que um utilizador anónimo possa:
-        // - Inserir (`INSERT`) dados com o seu `user_id`.
-        // - Selecionar (`SELECT`), Atualizar (`UPDATE`) e Excluir (`DELETE`) dados onde `user_id` corresponde ao seu.
-        // A política de RLS para todas estas operações deve ser: `user_id = auth.uid()`
-
-        let receitasSubscription;
-        let despesasSubscription;
-
-        // Função para carregar os dados iniciais
-        const fetchAndSubscribe = async () => {
-            // Fetch inicial de receitas
-            const { data: receitasData, error: receitasError } = await supabase.from('receitas').select('*').order('created_at', { ascending: false });
-            if (receitasError) {
-                handleError(receitasError, 'Erro ao carregar receitas iniciais');
-            } else {
-                setReceitas(receitasData);
-            }
+        <!-- Tela de Dashboard (principal) -->
+        <div id="dashboard-view" class="hidden">
+            <header class="flex justify-between items-center mb-8">
+                <!-- Botão do menu hambúrguer com ícone profissional -->
+                <button id="menu-btn" class="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition duration-300">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                    </svg>
+                </button>
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold text-gray-900 hidden sm:block">VUX Control</h1>
+                </div>
+                <button id="logout-btn" class="py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-300">
+                    Sair
+                </button>
+            </header>
             
-            // Fetch inicial de despesas
-            const { data: despesasData, error: despesasError } = await supabase.from('despesas').select('*').order('created_at', { ascending: false });
-            if (despesasError) {
-                handleError(despesasError, 'Erro ao carregar despesas iniciais');
-            } else {
-                setDespesas(despesasData);
-            }
-
-            // Subscrição em tempo real para receitas
-            receitasSubscription = supabase
-                .channel('public:receitas')
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'receitas' },
-                    async (payload) => {
-                        console.log(`Supabase Realtime: Receitas - Evento ${payload.eventType}`);
-                        // Recarrega todos os dados para garantir consistência
-                        const { data, error } = await supabase.from('receitas').select('*').order('created_at', { ascending: false });
-                        if (error) {
-                            handleError(error, 'Erro ao recarregar receitas');
-                        } else {
-                            setReceitas(data);
-                        }
-                    }
-                )
-                .subscribe();
-
-            // Subscrição em tempo real para despesas
-            despesasSubscription = supabase
-                .channel('public:despesas')
-                .on(
-                    'postgres_changes',
-                    { event: '*', schema: 'public', table: 'despesas' },
-                    async (payload) => {
-                        console.log(`Supabase Realtime: Despesas - Evento ${payload.eventType}`);
-                        const { data, error } = await supabase.from('despesas').select('*').order('created_at', { ascending: false });
-                        if (error) {
-                            handleError(error, 'Erro ao recarregar despesas');
-                        } else {
-                            setDespesas(data);
-                        }
-                    }
-                )
-                .subscribe();
-
-            setIsLoading(false);
-        };
-
-        fetchAndSubscribe();
-
-        // Retorna a função de limpeza para desativar os listeners
-        return () => {
-            if (receitasSubscription) supabase.removeChannel(receitasSubscription);
-            if (despesasSubscription) supabase.removeChannel(despesasSubscription);
-        };
-
-    }, [supabase, userId]);
-
-    // Calcula o saldo total
-    const saldo = receitas.reduce((sum, r) => sum + (r.valor || 0), 0) - despesas.reduce((sum, d) => sum + (d.valor || 0), 0);
-
-    // Adiciona uma nova entrada (receita ou despesa)
-    const handleAddEntry = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError(null);
-
-        if (!formDescricao || !formValor || isNaN(parseFloat(formValor))) {
-            setError('Por favor, preencha a descrição e o valor.');
-            setIsLoading(false);
-            return;
-        }
-
-        try {
-            const tableName = formType === 'receita' ? 'receitas' : 'despesas';
-            const { error: insertError } = await supabase
-                .from(tableName)
-                .insert({
-                    descricao: formDescricao,
-                    valor: parseFloat(formValor),
-                    user_id: userId // Necessário para as políticas RLS
-                });
-
-            if (insertError) {
-                handleError(insertError, `Erro ao adicionar a entrada`);
-            } else {
-                setFormDescricao('');
-                setFormValor('');
-                setIsAddingEntry(false);
-            }
-        } catch (err) {
-            handleError(err, `Erro ao adicionar a entrada`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Inicia o processo de edição de uma entrada
-    const handleEditClick = (entry, type) => {
-        setIsEditingEntry(true);
-        setIsAddingEntry(false);
-        setCurrentEntry(entry);
-        setFormType(type);
-        setFormDescricao(entry.descricao);
-        setFormValor(entry.valor);
-        setError(null);
-    };
-
-    // Atualiza uma entrada existente
-    const handleUpdateEntry = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError(null);
-
-        if (!currentEntry || !formDescricao || !formValor || isNaN(parseFloat(formValor))) {
-            setError('Por favor, preencha a descrição e o valor para atualizar.');
-            setIsLoading(false);
-            return;
-        }
-
-        try {
-            const tableName = formType === 'receita' ? 'receitas' : 'despesas';
-            const { error: updateError } = await supabase
-                .from(tableName)
-                .update({
-                    descricao: formDescricao,
-                    valor: parseFloat(formValor),
-                })
-                .eq('id', currentEntry.id);
-
-            if (updateError) {
-                handleError(updateError, 'Erro ao atualizar a entrada');
-            } else {
-                setIsEditingEntry(false);
-                setCurrentEntry(null);
-                setFormDescricao('');
-                setFormValor('');
-            }
-        } catch (err) {
-            handleError(err, 'Erro ao atualizar a entrada');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Inicia a modal de exclusão
-    const handleDeleteClick = (entry, type) => {
-        setEntryToDelete({ ...entry, type });
-        setShowDeleteModal(true);
-    };
-
-    // Executa a exclusão após a confirmação
-    const confirmDelete = async () => {
-        if (!entryToDelete) return;
-
-        setShowDeleteModal(false);
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            const tableName = entryToDelete.type === 'receita' ? 'receitas' : 'despesas';
-            const { error: deleteError } = await supabase
-                .from(tableName)
-                .delete()
-                .eq('id', entryToDelete.id);
-
-            if (deleteError) {
-                handleError(deleteError, 'Erro ao excluir a entrada');
-            }
-        } catch (err) {
-            handleError(err, 'Erro ao excluir a entrada');
-        } finally {
-            setIsLoading(false);
-            setEntryToDelete(null);
-        }
-    };
-
-    // Componente de carregamento
-    const LoadingSpinner = () => (
-        <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            <p className="ml-2">A carregar...</p>
-        </div>
-    );
-
-    // Interface do utilizador
-    return (
-        <div className="min-h-screen bg-gray-100 p-4 font-sans flex flex-col items-center">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6">Controlo de Finanças Pessoais</h1>
-
-            {/* Exibe o ID do utilizador para depuração */}
-            <div className="mb-4 text-sm text-gray-600">
-                <span className="font-semibold">ID do Utilizador:</span> {userId ? userId : 'A carregar...'}
-            </div>
-
-            {/* Exibe erros se houverem */}
-            {error && (
-                <div className="bg-red-200 text-red-800 p-3 rounded-lg w-full max-w-2xl mb-4 text-center shadow-md">
-                    <p>{error}</p>
+            <!-- Conteúdo das Abas (cada seção é uma aba) -->
+            <!-- Painel de Gastos e Entradas - Design aprimorado com cards e espaçamento -->
+            <div id="content-gastos-entradas" class="tab-content">
+                <div class="mb-8 p-6 rounded-2xl shadow-lg border-b-4 border-gray-300 bg-gray-50">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-2xl font-bold text-gray-900">Resumo Financeiro</h3>
+                        <div id="saldo-total" class="font-bold text-3xl text-gray-700">A carregar...</div>
+                    </div>
                 </div>
-            )}
 
-            {/* Saldo Total */}
-            <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-2xl mb-8 border border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-700">Saldo Total</h2>
-                <p className={`text-4xl font-extrabold mt-2 ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    €{saldo.toFixed(2)}
-                </p>
-            </div>
-
-            {/* Botões para adicionar ou fechar o formulário */}
-            <div className="flex space-x-4 mb-8">
-                <button
-                    onClick={() => {
-                        setIsAddingEntry(true);
-                        setIsEditingEntry(false);
-                        setFormType('receita');
-                        setFormDescricao('');
-                        setFormValor('');
-                        setError(null);
-                    }}
-                    className="bg-green-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-600 transition-colors shadow-lg"
-                >
-                    + Adicionar Receita
-                </button>
-                <button
-                    onClick={() => {
-                        setIsAddingEntry(true);
-                        setIsEditingEntry(false);
-                        setFormType('despesa');
-                        setFormDescricao('');
-                        setFormValor('');
-                        setError(null);
-                    }}
-                    className="bg-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-600 transition-colors shadow-lg"
-                >
-                    + Adicionar Despesa
-                </button>
-            </div>
-
-            {/* Formulário de Adição/Edição */}
-            {(isAddingEntry || isEditingEntry) && (
-                <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-2xl mb-8 border border-gray-200">
-                    <h2 className="text-2xl font-semibold text-gray-800 mb-4">{isEditingEntry ? 'Editar' : 'Adicionar Nova'} {formType === 'receita' ? 'Receita' : 'Despesa'}</h2>
-                    <form onSubmit={isEditingEntry ? handleUpdateEntry : handleAddEntry} className="space-y-4">
-                        <input
-                            type="text"
-                            placeholder="Descrição"
-                            value={formDescricao}
-                            onChange={(e) => setFormDescricao(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            required
-                        />
-                        <input
-                            type="number"
-                            placeholder="Valor"
-                            value={formValor}
-                            onChange={(e) => setFormValor(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            required
-                        />
-                        <div className="flex space-x-4">
-                            <button
-                                type="submit"
-                                className="w-1/2 bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-600 transition-colors shadow-lg"
-                                disabled={isLoading}
-                            >
-                                {isLoading ? 'A guardar...' : isEditingEntry ? 'Atualizar' : 'Adicionar'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsAddingEntry(false);
-                                    setIsEditingEntry(false);
-                                    setError(null);
-                                }}
-                                className="w-1/2 bg-gray-300 text-gray-800 px-6 py-3 rounded-xl font-semibold hover:bg-gray-400 transition-colors shadow-lg"
-                            >
-                                Cancelar
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <!-- Card para Receitas -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-green-400">
+                        <h3 class="text-xl font-semibold text-green-800 mb-4">Adicionar Entrada</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="receita-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+                                <input type="text" id="receita-descricao" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <div>
+                                <label for="receita-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+                                <input type="number" id="receita-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-green-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+                            </div>
+                            <button id="add-receita-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
+                                Adicionar Entrada
                             </button>
                         </div>
-                    </form>
-                </div>
-            )}
-
-            {isLoading && !error ? (
-                <LoadingSpinner />
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
-                    {/* Lista de Receitas */}
-                    <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
-                        <h2 className="text-2xl font-bold text-green-600 mb-4">Receitas</h2>
-                        {receitas.length === 0 ? (
-                            <p className="text-gray-500 text-center">Nenhuma receita adicionada ainda. Adicione uma para começar a controlar as suas finanças!</p>
-                        ) : (
-                            <ul className="space-y-4">
-                                {receitas.map((receita) => (
-                                    <li key={receita.id} className="flex items-center justify-between p-4 bg-green-50 rounded-lg shadow-sm">
-                                        <div>
-                                            <p className="font-semibold text-gray-800">{receita.descricao}</p>
-                                            <p className="text-sm text-gray-500">{formatDate(receita.created_at)}</p>
-                                        </div>
-                                        <div className="flex items-center space-x-4">
-                                            <span className="text-lg font-bold text-green-700">€{receita.valor.toFixed(2)}</span>
-                                            <button onClick={() => handleEditClick(receita, 'receita')} className="text-blue-500 hover:text-blue-700 transition-colors">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-3.88 3.88a1 1 0 010 1.414L6.96 11.414a1 1 0 01-1.414 0L3.586 9.414a1 1 0 010-1.414l2.828-2.828a1 1 0 011.414 0l3.88 3.88z" />
-                                                </svg>
-                                            </button>
-                                            <button onClick={() => handleDeleteClick(receita, 'receita')} className="text-red-500 hover:text-red-700 transition-colors">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
                     </div>
 
-                    {/* Lista de Despesas */}
-                    <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
-                        <h2 className="text-2xl font-bold text-red-600 mb-4">Despesas</h2>
-                        {despesas.length === 0 ? (
-                            <p className="text-gray-500 text-center">Nenhuma despesa adicionada ainda. Adicione uma para começar a controlar as suas finanças!</p>
-                        ) : (
-                            <ul className="space-y-4">
-                                {despesas.map((despesa) => (
-                                    <li key={despesa.id} className="flex items-center justify-between p-4 bg-red-50 rounded-lg shadow-sm">
-                                        <div>
-                                            <p className="font-semibold text-gray-800">{despesa.descricao}</p>
-                                            <p className="text-sm text-gray-500">{formatDate(despesa.created_at)}</p>
-                                        </div>
-                                        <div className="flex items-center space-x-4">
-                                            <span className="text-lg font-bold text-red-700">€{despesa.valor.toFixed(2)}</span>
-                                            <button onClick={() => handleEditClick(despesa, 'despesa')} className="text-blue-500 hover:text-blue-700 transition-colors">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-3.88 3.88a1 1 0 010 1.414L6.96 11.414a1 1 0 01-1.414 0L3.586 9.414a1 1 0 010-1.414l2.828-2.828a1 1 0 011.414 0l3.88 3.88z" />
-                                                </svg>
-                                            </button>
-                                            <button onClick={() => handleDeleteClick(despesa, 'despesa')} className="text-red-500 hover:text-red-700 transition-colors">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                    <!-- Card para Despesas -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-red-400">
+                        <h3 class="text-xl font-semibold text-red-800 mb-4">Adicionar Saída</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="despesa-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+                                <input type="text" id="despesa-descricao" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
+                            </div>
+                            <div>
+                                <label for="despesa-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+                                <input type="number" id="despesa-valor" step="0.01" class="mt-1 block w-full px-4 py-2 border border-red-300 rounded-lg shadow-sm focus:ring-red-500 focus:border-red-500">
+                            </div>
+                            <button id="add-despesa-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition duration-300">
+                                Adicionar Saída
+                            </button>
+                        </div>
                     </div>
                 </div>
-            )}
 
-            {/* Renderiza a modal se for necessário */}
-            {showDeleteModal && entryToDelete && (
-                <ConfirmationModal
-                    message={`Tem certeza de que deseja excluir "${entryToDelete.descricao}"?`}
-                    onConfirm={confirmDelete}
-                    onCancel={() => {
-                        setShowDeleteModal(false);
-                        setEntryToDelete(null);
-                    }}
-                />
-            )}
+                <!-- Seção de Listagem de dados aprimorada -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h3 class="text-xl font-semibold text-gray-900 mb-4">Lançamentos Recentes</h3>
+                    <div class="flex items-center justify-center py-4 hidden" id="loading-container">
+                        <div class="loader"></div>
+                        <span class="ml-2 text-gray-500">A carregar dados...</span>
+                    </div>
+                    <div id="data-list" class="space-y-4">
+                        <!-- Itens serão injetados aqui via JavaScript -->
+                    </div>
+                    <button id="export-btn" class="w-full mt-6 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-300">
+                        Exportar para Planilha
+                    </button>
+                </div>
+            </div>
+
+            <!-- Painel de Serviços e Planos - Layout com cards mais limpos e dinâmico -->
+            <div id="content-servicos-planos" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Catálogo de Serviços e Planos</h3>
+                    <div class="flex items-center justify-center py-4 hidden" id="loading-services-container">
+                        <div class="loader"></div>
+                        <span class="ml-2 text-gray-500">A carregar serviços...</span>
+                    </div>
+                    <div id="services-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Serviços serão injetados aqui via JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- NOVO Painel de Cadastro de Serviços -->
+            <div id="content-cadastro-servicos" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg border-l-4 border-yellow-400">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Cadastro de Novo Serviço/Plano</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="service-name" class="block text-sm font-medium text-gray-700">Nome do Serviço/Plano</label>
+                            <input type="text" id="service-name" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <div>
+                            <label for="service-description" class="block text-sm font-medium text-gray-700">Descrição</label>
+                            <textarea id="service-description" rows="3" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500"></textarea>
+                        </div>
+                        <div>
+                            <label for="service-price" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+                            <input type="number" id="service-price" step="0.01" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-yellow-500 focus:border-yellow-500">
+                        </div>
+                        <button id="add-service-btn" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition duration-300">
+                            Cadastrar Serviço
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Painel de Agenda - Design mais limpo e visualmente agradável -->
+            <div id="content-agenda" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Agenda de Compromissos</h3>
+                    <p class="text-center text-gray-500 mb-4">Funcionalidade da Agenda em desenvolvimento. Aqui você poderá visualizar seus compromissos por mês, semana ou dia.</p>
+                    <div id="calendar-view" class="bg-gray-100 p-4 rounded-lg shadow-inner">
+                        <h4 class="text-lg font-bold text-center mb-2" id="current-month-year"></h4>
+                        <div class="grid grid-cols-7 text-center font-semibold text-sm text-gray-600 mb-2">
+                            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+                        </div>
+                        <div id="calendar-days" class="grid grid-cols-7 gap-1">
+                            <!-- Os dias do mês serão preenchidos aqui via JS -->
+                        </div>
+                    </div>
+                    <button id="add-event-btn" class="w-full mt-4 py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Adicionar Evento</button>
+                    <!-- Modal para adicionar evento -->
+                    <div id="add-event-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                        <div class="relative top-20 mx-auto p-6 border w-96 shadow-lg rounded-xl bg-white">
+                            <h3 class="text-xl font-bold mb-4">Adicionar Novo Evento</h3>
+                            <div class="space-y-4">
+                                <input type="text" id="event-title" placeholder="Título do Evento" class="w-full p-3 border rounded-lg">
+                                <input type="date" id="event-date" class="w-full p-3 border rounded-lg">
+                                <input type="time" id="event-time" class="w-full p-3 border rounded-lg">
+                                <input type="text" id="event-location" placeholder="Local" class="w-full p-3 border rounded-lg">
+                                <select id="event-service-type" class="w-full p-3 border rounded-lg">
+                                    <option value="">Tipo de Serviço</option>
+                                    <option value="Plano Básico">Plano Básico</option>
+                                    <option value="Plano Intermediário">Plano Intermediário</option>
+                                    <option value="Plano Premium">Plano Premium</option>
+                                    <option value="Serviço Avulso">Serviço Avulso</option>
+                                </select>
+                            </div>
+                            <div class="mt-6 flex justify-end space-x-2">
+                                <button id="save-event-btn" class="py-2 px-4 rounded-lg text-white bg-green-600 hover:bg-green-700 transition duration-300">Salvar</button>
+                                <button id="cancel-event-btn" class="py-2 px-4 rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 transition duration-300">Cancelar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Painel de Controle de Serviços - Layout com cards para cada serviço -->
+            <div id="content-controle-servicos" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6">Controle de Status dos Serviços</h3>
+                    <div id="service-control-list" class="space-y-4">
+                        <p class="text-center text-gray-500">Exemplo de lista de serviços. Você pode criar uma nova tabela no Supabase e buscar os dados aqui.</p>
+                        <!-- Card para serviço de exemplo -->
+                        <div class="bg-gray-100 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
+                            <div>
+                                <p class="font-medium text-gray-800">Vídeo Institucional para Empresa X</p>
+                                <p class="text-sm text-gray-500">Agendado para 20/08/2024</p>
+                            </div>
+                            <select class="p-2 rounded-lg border border-gray-300 bg-white">
+                                <option>Agendado</option>
+                                <option>Em andamento</option>
+                                <option>Enviado para o cliente</option>
+                                <option>Aprovado pelo cliente</option>
+                                <option>Concluído/Entregue</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    );
-}
+
+        <!-- Barra Lateral (Sidebar) com as opções de menu -->
+        <nav id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white p-6 transform -translate-x-full transition-transform duration-300 ease-in-out">
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center space-x-2">
+                    <div class="vux-logo h-12 w-12 rounded-full text-lg shadow-md">
+                        VUX.
+                    </div>
+                    <span class="text-xl font-bold text-gray-200">Menu</span>
+                </div>
+                <button id="close-menu-btn" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition duration-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <ul class="space-y-4">
+                <li>
+                    <button id="sidebar-gastos-entradas" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3 active">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9v2m0 4v2m0-4h2m-2-2h-2m2 2h2m-2 2h-2m-2 2v2m0-4v2m0-4h2m-2 2h-2m2 2h2m-2 2h-2m-2 2v2m0-4v2m0-4h2m-2 2h-2m2 2h2m-2 2h-2M3 12a9 9 0 1118 0 9 9 0 01-18 0z"></path>
+                        </svg>
+                        <span>Gastos e Entradas</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-servicos-planos" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0h2a2 2 0 012 2v8a2 2 0 01-2 2h-2m2-8V9m0-2a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h16a2 2 0 002-2v-2m-6 2l-8-4-8 4m16 0V7m0 2a2 2 0 002 2h-2m-2-2v2m-2-2v2"></path>
+                        </svg>
+                        <span>Serviços e Planos</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-cadastro-servicos" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        <span>Cadastro de Serviços</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-agenda" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h.01M9 11h.01M13 11h.01M15 11h.01M5 15h.01M17 15h.01M5 19h.01M17 19h.01M3 11h2c1.104 0 2-.896 2-2V7c0-1.104-.896-2-2-2H5c-1.104 0-2 .896-2 2v2c0 1.104.896 2 2 2zm16 0h2c1.104 0 2-.896 2-2V7c0-1.104-.896-2-2-2h-2c-1.104 0-2 .896-2 2v2c0 1.104.896 2 2 2zm-8-4a1 1 0 11-2 0 1 1 0 012 0z"></path>
+                        </svg>
+                        <span>Agenda</span>
+                    </button>
+                </li>
+                <li>
+                    <button id="sidebar-controle-servicos" class="sidebar-btn w-full text-left px-4 py-3 rounded-lg transition duration-300 hover:bg-gray-700 flex items-center space-x-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7l-2 2m0 0l-2-2m2 2V9"></path>
+                        </svg>
+                        <span>Controle de Serviços</span>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+        <!-- Overlay para fechar o menu ao clicar fora -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black opacity-0 transition-opacity duration-300 pointer-events-none z-40"></div>
+    </div>
+
+    <script>
+        // Substitua por suas chaves do projeto Supabase
+        const SUPABASE_URL = 'https://mpcjuzvbzoaonhjlclmg.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wY2p1enZiem9hb25oamxjbG1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDg4OTUsImV4cCI6MjA3MTEyNDg5NX0.Pz2HuzmfY9czU_ckXzKi2flNAS71p1sqpWBxBb2b4sI';
+
+        let supabase;
+        try {
+            // Verificando se a chave de API foi preenchida
+            if (SUPABASE_KEY === 'SUA_CHAVE_API_ANON') {
+                throw new Error("Por favor, substitua 'SUA_CHAVE_API_ANON' pela sua chave de API do Supabase.");
+            }
+            // Inicializa o cliente Supabase
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } catch (error) {
+            console.error('Erro ao inicializar Supabase:', error.message);
+            const authView = document.getElementById('auth-view');
+            const authErrorMessage = document.getElementById('auth-error-message');
+            authView.classList.remove('hidden');
+            authErrorMessage.textContent = `Erro de inicialização: ${error.message}`;
+        }
+        
+        // Referências aos elementos da UI
+        const authView = document.getElementById('auth-view');
+        const dashboardView = document.getElementById('dashboard-view');
+        const authErrorMessage = document.getElementById('auth-error-message');
+        const dataList = document.getElementById('data-list');
+        const servicesList = document.getElementById('services-list'); // Novo
+        const messageBox = document.getElementById('message-box');
+        const saldoTotal = document.getElementById('saldo-total');
+        const loadingContainer = document.getElementById('loading-container');
+        const loadingServicesContainer = document.getElementById('loading-services-container'); // Novo
+
+        // Referências dos botões e inputs
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const exportBtn = document.getElementById('export-btn');
+
+        const receitaDescricaoInput = document.getElementById('receita-descricao');
+        const receitaValorInput = document.getElementById('receita-valor');
+        const addReceitaBtn = document.getElementById('add-receita-btn');
+
+        const despesaDescricaoInput = document.getElementById('despesa-descricao');
+        const despesaValorInput = document.getElementById('despesa-valor');
+        const addDespesaBtn = document.getElementById('add-despesa-btn');
+        
+        // Novos inputs e botão para o cadastro de serviços
+        const serviceNameInput = document.getElementById('service-name');
+        const serviceDescriptionInput = document.getElementById('service-description');
+        const servicePriceInput = document.getElementById('service-price');
+        const addServiceBtn = document.getElementById('add-service-btn');
+
+        // Nova referência para o menu hambúrguer e barra lateral
+        const menuBtn = document.getElementById('menu-btn');
+        const closeMenuBtn = document.getElementById('close-menu-btn');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const sidebarButtons = document.querySelectorAll('.sidebar-btn');
+
+        // Conteúdo das abas
+        const tabs = {
+            'sidebar-gastos-entradas': document.getElementById('content-gastos-entradas'),
+            'sidebar-servicos-planos': document.getElementById('content-servicos-planos'),
+            'sidebar-cadastro-servicos': document.getElementById('content-cadastro-servicos'), // Novo
+            'sidebar-agenda': document.getElementById('content-agenda'),
+            'sidebar-controle-servicos': document.getElementById('content-controle-servicos')
+        };
+        const tabButtons = document.querySelectorAll('.tab-btn');
+
+        // Lógica da barra lateral (sidebar)
+        function toggleSidebar() {
+            sidebar.classList.toggle('-translate-x-full');
+            sidebarOverlay.classList.toggle('opacity-0');
+            sidebarOverlay.classList.toggle('pointer-events-none');
+        }
+
+        menuBtn.addEventListener('click', toggleSidebar);
+        closeMenuBtn.addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', toggleSidebar);
+
+        sidebarButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sidebarButtons.forEach(b => b.classList.remove('active'));
+                Object.values(tabs).forEach(content => content.classList.add('hidden'));
+
+                btn.classList.add('active');
+                tabs[btn.id].classList.remove('hidden');
+                toggleSidebar(); // Fecha a barra lateral após a seleção
+
+                // Carrega os dados corretos para a aba selecionada
+                if (btn.id === 'sidebar-gastos-entradas') {
+                    fetchData();
+                } else if (btn.id === 'sidebar-servicos-planos') {
+                    fetchServices();
+                }
+                // Outras funções de carregamento podem ser adicionadas aqui
+            });
+        });
+
+        // Função para mostrar a tela correta (Auth ou Dashboard)
+        function showView(isLoggedIn) {
+            if (isLoggedIn) {
+                authView.classList.add('hidden');
+                dashboardView.classList.remove('hidden');
+            } else {
+                authView.classList.remove('hidden');
+                dashboardView.classList.add('hidden');
+            }
+        }
+
+        // Função para exibir mensagens na UI
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.style.backgroundColor = isError ? '#fee2e2' : '#d1fae5';
+            messageBox.style.color = isError ? '#991b1b' : '#065f46';
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, 3000);
+        }
+
+        // Simulação de login
+        loginBtn.addEventListener('click', () => {
+            const user = usernameInput.value;
+            const pass = passwordInput.value;
+            if (user === 'Admin' && pass === '1234') {
+                showView(true);
+                // Apenas chama fetchData se o Supabase tiver sido inicializado com sucesso
+                if (supabase) {
+                    fetchData();
+                    fetchServices(); // Carrega os serviços ao fazer login também
+                } else {
+                    showMessage('Erro: As chaves do Supabase não foram configuradas.', true);
+                }
+                renderCalendar();
+            } else {
+                authErrorMessage.textContent = 'Utilizador ou senha inválidos.';
+            }
+        });
+
+        // Event listener para o botão de Sair
+        logoutBtn.addEventListener('click', () => {
+            showView(false);
+            showMessage('Você saiu com sucesso!', false);
+        });
+
+        // Função para buscar, exibir os dados e calcular o saldo
+        async function fetchData() {
+            if (!supabase) return; // Garantir que Supabase está disponível
+
+            console.log('Iniciando busca de dados...');
+            dataList.innerHTML = ''; // Limpa a lista de dados
+            loadingContainer.classList.remove('hidden'); // Mostra o container de loading
+            saldoTotal.textContent = 'A carregar...';
+
+            try {
+                // Buscando receitas e despesas. A ordenação é feita pela coluna 'created_at' que é padrão do Supabase
+                const [receitasResult, despesasResult] = await Promise.all([
+                    supabase.from('receitas').select('*').order('created_at', { ascending: false }),
+                    supabase.from('despesas').select('*').order('created_at', { ascending: false })
+                ]);
+
+                if (receitasResult.error) throw receitasResult.error;
+                // CORREÇÃO: Usando 'despesasResult' em vez de 'despesaResult'
+                if (despesasResult.error) throw despesasResult.error;
+
+                const receitas = receitasResult.data;
+                const despesas = despesasResult.data;
+
+                // Calculando o saldo
+                const totalReceitas = receitas.reduce((sum, item) => sum + item.valor, 0);
+                const totalDespesas = despesas.reduce((sum, item) => sum + item.valor, 0);
+                const saldo = totalReceitas - totalDespesas;
+                saldoTotal.textContent = `Saldo: R$ ${saldo.toFixed(2)}`;
+                saldoTotal.style.color = saldo >= 0 ? '#16a34a' : '#dc2626';
+
+                // Combinando e ordenando por data de criação (created_at)
+                const allData = [...receitas.map(item => ({ ...item, tipo: 'receita' })), ...despesas.map(item => ({ ...item, tipo: 'despesa' }))]
+                               .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                if (allData.length === 0) {
+                    dataList.innerHTML = '<p class="text-center text-gray-500">Nenhum lançamento encontrado. Adicione um para começar!</p>';
+                } else {
+                    allData.forEach(item => {
+                        const isReceita = item.tipo === 'receita';
+                        const cardClass = isReceita ? 'bg-white border-green-400' : 'bg-white border-red-400';
+                        const valorClass = isReceita ? 'text-green-600' : 'text-red-600';
+                        const valorTexto = isReceita ? `+ R$ ${item.valor.toFixed(2)}` : `- R$ ${item.valor.toFixed(2)}`;
+                        
+                        // Ícones para receita e despesa
+                        const iconSVG = isReceita ? 
+                            `<svg class="w-6 h-6 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>` : 
+                            `<svg class="w-6 h-6 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>`;
+
+                        const card = `
+                            <div class="bg-gray-50 p-4 border-l-4 rounded-lg shadow-sm flex items-center justify-between transition-transform duration-200 hover:scale-[1.01] cursor-pointer">
+                                <div class="flex items-center">
+                                    ${iconSVG}
+                                    <div>
+                                        <p class="text-gray-800 font-medium">${item.descricao}</p>
+                                        <p class="text-gray-500 text-sm">${new Date(item.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold ${valorClass} text-lg">${valorTexto}</span>
+                            </div>
+                        `;
+                        dataList.innerHTML += card;
+                    });
+                }
+            } catch (err) {
+                dataList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro ao carregar dados. Tente novamente.</p>';
+                console.error('Erro ao buscar dados:', err);
+            } finally {
+                loadingContainer.classList.add('hidden'); // Esconde o container de loading
+                console.log('Busca de dados finalizada.');
+            }
+        }
+        
+        // Função para buscar e exibir os serviços cadastrados (NOVO)
+        async function fetchServices() {
+            if (!supabase) return;
+
+            console.log('Iniciando busca de serviços...');
+            servicesList.innerHTML = '';
+            loadingServicesContainer.classList.remove('hidden');
+
+            try {
+                const { data, error } = await supabase.from('servicos').select('*').order('nome');
+
+                if (error) {
+                    // Trata o erro de tabela não encontrada
+                    if (error.code === 'PGRST205') {
+                        servicesList.innerHTML = '<p class="text-center text-red-500 font-medium">Erro: Tabela "servicos" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.</p>';
+                    }
+                    throw error;
+                }
+
+                if (data.length === 0) {
+                    servicesList.innerHTML = '<p class="text-center text-gray-500">Nenhum serviço ou plano encontrado. Cadastre um para começar!</p>';
+                } else {
+                    data.forEach(service => {
+                        const card = `
+                            <div class="bg-indigo-50 p-6 rounded-2xl shadow-md border-l-4 border-indigo-400">
+                                <h4 class="text-lg font-semibold text-indigo-800">${service.nome}</h4>
+                                <p class="text-gray-600 mt-2">Valor: R$ ${service.valor.toFixed(2)}</p>
+                                <p class="text-gray-500 mt-4">${service.descricao}</p>
+                            </div>
+                        `;
+                        servicesList.innerHTML += card;
+                    });
+                }
+            } catch (err) {
+                console.error('Erro ao buscar serviços:', err);
+            } finally {
+                loadingServicesContainer.classList.add('hidden');
+                console.log('Busca de serviços finalizada.');
+            }
+        }
+
+        // Função para adicionar uma nova receita
+        async function addReceita(descricao, valor) {
+            if (!supabase) return;
+
+            try {
+                const { error } = await supabase.from('receitas').insert([{ descricao, valor }]);
+                if (error) {
+                    throw error;
+                }
+                showMessage('Entrada adicionada com sucesso!', false);
+                receitaDescricaoInput.value = '';
+                receitaValorInput.value = '';
+                fetchData(); // Atualiza a lista de dados
+            } catch (err) {
+                showMessage(`Erro: ${err.message}`, true);
+                console.error('Erro ao adicionar receita:', err);
+            }
+        }
+        
+        // Função para adicionar uma nova despesa
+        async function addDespesa(descricao, valor) {
+            if (!supabase) return;
+
+            try {
+                const { error } = await supabase.from('despesas').insert([{ descricao, valor }]);
+                if (error) {
+                    throw error;
+                }
+                showMessage('Saída adicionada com sucesso!', false);
+                despesaDescricaoInput.value = '';
+                despesaValorInput.value = '';
+                fetchData(); // Atualiza a lista de dados
+            } catch (err) {
+                showMessage(`Erro: ${err.message}`, true);
+                console.error('Erro ao adicionar despesa:', err);
+            }
+        }
+
+        // Função para adicionar um novo serviço (NOVO)
+        async function addService() {
+            if (!supabase) return;
+
+            const nome = serviceNameInput.value.trim();
+            const descricao = serviceDescriptionInput.value.trim();
+            const valor = parseFloat(servicePriceInput.value);
+
+            if (!nome || !descricao || isNaN(valor) || valor <= 0) {
+                showMessage('Por favor, preencha todos os campos do serviço com valores válidos.', true);
+                return;
+            }
+
+            try {
+                const { error } = await supabase.from('servicos').insert([{ nome, descricao, valor }]);
+                if (error) {
+                    // Trata o erro de tabela não encontrada
+                    if (error.code === 'PGRST205') {
+                         showMessage('Erro: Tabela "servicos" não encontrada. Por favor, crie a tabela no seu banco de dados Supabase para usar esta funcionalidade.', true);
+                    }
+                    throw error;
+                }
+                showMessage('Serviço cadastrado com sucesso!', false);
+                serviceNameInput.value = '';
+                serviceDescriptionInput.value = '';
+                servicePriceInput.value = '';
+                fetchServices(); // Atualiza a lista de serviços
+            } catch (err) {
+                console.error('Erro ao adicionar serviço:', err);
+            }
+        }
+
+        // Event listener para o botão de Adicionar Entrada
+        addReceitaBtn.addEventListener('click', () => {
+            const descricao = receitaDescricaoInput.value.trim();
+            const valor = parseFloat(receitaValorInput.value);
+            if (descricao && !isNaN(valor) && valor > 0) {
+                addReceita(descricao, valor);
+            } else {
+                showMessage('Por favor, preencha a descrição e um valor válido.', true);
+            }
+        });
+
+        // Event listener para o botão de Adicionar Saída
+        addDespesaBtn.addEventListener('click', () => {
+            const descricao = despesaDescricaoInput.value.trim();
+            const valor = parseFloat(despesaValorInput.value);
+            if (descricao && !isNaN(valor) && valor > 0) {
+                addDespesa(descricao, valor);
+            } else {
+                showMessage('Por favor, preencha a descrição e um valor válido.', true);
+            }
+        });
+        
+        // Event listener para o botão de Adicionar Serviço (NOVO)
+        addServiceBtn.addEventListener('click', addService);
+
+        // Função para exportar dados para CSV
+        exportBtn.addEventListener('click', async () => {
+            if (!supabase) {
+                showMessage('Erro: As chaves do Supabase não foram configuradas.', true);
+                return;
+            }
+
+            try {
+                const [receitasResult, despesasResult] = await Promise.all([
+                    supabase.from('receitas').select('*'),
+                    supabase.from('despesas').select('*')
+                ]);
+
+                if (receitasResult.error || despesasResult.error) {
+                    throw new Error('Falha ao buscar dados para exportação.');
+                }
+
+                const receitas = receitasResult.data.map(d => ({ ...d, tipo: 'receita' }));
+                const despesas = despesasResult.data.map(d => ({ ...d, tipo: 'despesa' }));
+                const allData = [...receitas, ...despesas];
+
+                if (allData.length === 0) {
+                    showMessage('Não há dados para exportar.', true);
+                    return;
+                }
+
+                const headers = ["tipo", "descricao", "valor", "data"];
+                const csvContent = "data:text/csv;charset=utf-8," +
+                    headers.join(";") + "\n" +
+                    allData.map(item =>
+                        // Usando a coluna 'created_at' que é o timestamp de criação no Supabase
+                        `${item.tipo};${item.descricao};${item.valor};${new Date(item.created_at).toLocaleDateString()}`
+                    ).join("\n");
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "lancamentos_vux.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showMessage('Dados exportados com sucesso!', false);
+
+            } catch (error) {
+                showMessage(`Erro ao exportar: ${error.message}`, true);
+                console.error('Erro de exportação:', error);
+            }
+        });
+
+
+        // Código da Agenda (Simplificado)
+        const calendarDays = document.getElementById('calendar-days');
+        const currentMonthYear = document.getElementById('current-month-year');
+        const addEventBtn = document.getElementById('add-event-btn');
+        const addEventModal = document.getElementById('add-event-modal');
+        const saveEventBtn = document.getElementById('save-event-btn');
+        const cancelEventBtn = document.getElementById('cancel-event-btn');
+        const eventDateInput = document.getElementById('event-date');
+
+        let currentDate = new Date();
+
+        function renderCalendar() {
+            calendarDays.innerHTML = '';
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            currentMonthYear.textContent = new Date(year, month).toLocaleString('pt-br', { month: 'long', year: 'numeric' });
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // Preenche os dias vazios
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                const emptyDay = document.createElement('div');
+                calendarDays.appendChild(emptyDay);
+            }
+            // Preenche os dias do mês
+            for (let i = 1; i <= daysInMonth; i++) {
+                const day = document.createElement('div');
+                day.textContent = i;
+                day.className = 'text-center p-2 rounded-full cursor-pointer hover:bg-gray-200 transition-colors';
+                day.addEventListener('click', () => {
+                    // Seleciona a data no input do modal
+                    const formattedDate = new Date(year, month, i).toISOString().split('T')[0];
+                    eventDateInput.value = formattedDate;
+                    addEventModal.classList.remove('hidden');
+                });
+                calendarDays.appendChild(day);
+            }
+        }
+
+        addEventBtn.addEventListener('click', () => {
+            addEventModal.classList.remove('hidden');
+        });
+
+        cancelEventBtn.addEventListener('click', () => {
+            addEventModal.classList.add('hidden');
+        });
+
+        // Lógica para salvar evento (simplificada)
+        saveEventBtn.addEventListener('click', () => {
+            const title = document.getElementById('event-title').value;
+            const date = document.getElementById('event-date').value;
+            if (title && date) {
+                // Aqui você integraria com o Supabase, por exemplo:
+                // await supabase.from('agenda_eventos').insert([{ title, date, ... }]);
+                showMessage('Evento salvo com sucesso! (Lógica simplificada)', false);
+                addEventModal.classList.add('hidden');
+                // Adicione a lógica para recarregar os eventos no calendário
+            } else {
+                showMessage('Título e data são obrigatórios.', true);
+            }
+        });
+
+        // Inicializa o calendário na carga da página
+        renderCalendar();
+    </script>
+
+</body>
+</html>
