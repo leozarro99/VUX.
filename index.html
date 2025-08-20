@@ -1,1007 +1,1153 @@
-import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, collection, query, where, getDocs, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
-
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
-
-// Variáveis globais do aplicativo
-let app = null;
-let db = null;
-let auth = null;
-
-// === Componente Modal Reutilizável para Formulários ===
-const Modal = ({ show, onClose, title, children }) => {
-  if (!show) {
-    return null;
-  }
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4">
-        <div className="flex justify-between items-center mb-4 border-b pb-2">
-          <h3 className="text-xl font-semibold text-[#5E4D40]">{title}</h3>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-        <div>{children}</div>
-      </div>
-    </div>
-  );
-};
-
-// === Componente de Login ===
-const LoginScreen = ({ login, loginError, isAuthenticating }) => {
-  const [loginId, setLoginId] = useState('');
-  const [password, setPassword] = useState('');
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    login(loginId, password);
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-stone-200">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
-        <div className="flex items-center justify-center mb-6">
-          <span className="text-6xl font-black text-[#5E4D40]">VUX</span>
-          <span className="text-6xl text-[#6A5A4A] font-extrabold -ml-2">.</span>
-        </div>
-        <h1 className="text-xl font-bold text-center mb-6 text-stone-700">Controlo de Acesso</h1>
-        <form onSubmit={handleLogin}>
-          <div className="mb-4">
-            <label htmlFor="login-id" className="block text-sm font-medium text-stone-700 mb-1">Login:</label>
-            <input
-              type="text"
-              id="login-id"
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6A5A4A]"
-              placeholder="Digite o seu login"
-              required
-            />
-          </div>
-          <div className="mb-4">
-            <label htmlFor="password" className="block text-sm font-medium text-stone-700 mb-1">Senha:</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6A5A4A]"
-              placeholder="Digite a sua senha"
-              required
-            />
-          </div>
-          {loginError && <p className="text-red-500 text-sm mb-4">{loginError}</p>}
-          <button
-            type="submit"
-            className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors"
-            disabled={isAuthenticating}
-          >
-            {isAuthenticating ? 'A entrar...' : 'Entrar'}
-          </button>
-          <p className="mt-4 text-xs text-center text-stone-500">
-            * Use o login `Admin.Vux` com a senha `1234` para aceder ao painel de administração.
-          </p>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// === Componente para a Aba de Gastos e Entradas ===
-const GastosEntradas = ({ userId, isAuthReady }) => {
-  const [gastos, setGastos] = useState([]);
-  const [entradas, setEntradas] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [transactionType, setTransactionType] = useState('entrada');
-  const [description, setDescription] = useState('');
-  const [value, setValue] = useState('');
-
-  // Listener do Firestore
-  useEffect(() => {
-    if (!db || !userId || !isAuthReady) return;
-
-    // Listener para Entradas
-    const entradasRef = collection(db, 'artifacts', appId, 'users', userId, 'entradas');
-    const unsubscribeEntradas = onSnapshot(entradasRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setEntradas(data);
-    }, (error) => { console.error("Erro ao carregar entradas:", error); });
-    
-    // Listener para Gastos
-    const gastosRef = collection(db, 'artifacts', appId, 'users', userId, 'gastos');
-    const unsubscribeGastos = onSnapshot(gastosRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setGastos(data);
-    }, (error) => { console.error("Erro ao carregar gastos:", error); });
-
-    return () => {
-      unsubscribeEntradas();
-      unsubscribeGastos();
-    };
-  }, [userId, isAuthReady]);
-
-  const totalEntradas = entradas.reduce((sum, item) => sum + parseFloat(item.value || 0), 0);
-  const totalGastos = gastos.reduce((sum, item) => sum + parseFloat(item.value || 0), 0);
-  const saldoTotal = totalEntradas - totalGastos;
-  const maxBarHeight = Math.max(totalEntradas, totalGastos);
-
-  const handleAddTransaction = async (e) => {
-    e.preventDefault();
-    if (!description || !value || isNaN(parseFloat(value))) return;
-
-    const transactionData = {
-      date: new Date().toLocaleDateString('pt-PT'),
-      description,
-      value: parseFloat(value),
-    };
-
-    try {
-      const collectionRef = collection(db, 'artifacts', appId, 'users', userId, transactionType === 'entrada' ? 'entradas' : 'gastos');
-      await setDoc(doc(collectionRef), transactionData);
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VUX Control</title>
+    <!-- Font Inter from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase Libraries -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+      import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+      import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
       
-      setDescription('');
-      setValue('');
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error("Erro ao adicionar transação:", error);
-    }
-  };
-
-  const handleDeleteTransaction = async (id, type) => {
-    try {
-      const docRef = doc(db, 'artifacts', appId, 'users', userId, type === 'entrada' ? 'entradas' : 'gastos', id);
-      await deleteDoc(docRef);
-    } catch (error) {
-      console.error("Erro ao eliminar transação:", error);
-    }
-  };
-
-  return (
-    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
-      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">📊 Gastos e Entradas</h2>
-      
-      {/* Resumo Financeiro com Gráfico */}
-      <div className="mb-4 p-6 rounded-2xl border-2 border-stone-200 bg-white shadow-lg">
-        <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Resumo Financeiro</h3>
-        
-        {/* Gráfico de Barras */}
-        <div className="flex justify-around items-end h-32 mb-4">
-          <div className="flex-1 text-center">
-            <div className="bg-green-500 rounded-t-lg mx-auto transition-all duration-500" style={{ height: `${(totalEntradas / (maxBarHeight || 1)) * 100}%`, width: '40px' }}></div>
-            <p className="mt-2 text-sm text-green-600">Entradas</p>
-            <p className="font-bold">R$ {totalEntradas.toFixed(2)}</p>
-          </div>
-          <div className="flex-1 text-center">
-            <div className="bg-red-500 rounded-t-lg mx-auto transition-all duration-500" style={{ height: `${(totalGastos / (maxBarHeight || 1)) * 100}%`, width: '40px' }}></div>
-            <p className="mt-2 text-sm text-red-600">Gastos</p>
-            <p className="font-bold">R$ {totalGastos.toFixed(2)}</p>
-          </div>
-        </div>
-        <p className="text-2xl font-bold text-center mt-4">Saldo Total: <span className={saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>R$ {saldoTotal.toFixed(2)}</span></p>
-      </div>
-      
-      {/* Botões para abrir o modal */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <button onClick={() => { setTransactionType('entrada'); setIsModalOpen(true); }} className="py-3 px-6 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors text-lg">
-          + Nova Entrada
-        </button>
-        <button onClick={() => { setTransactionType('gasto'); setIsModalOpen(true); }} className="py-3 px-6 bg-stone-400 text-stone-800 font-semibold rounded-lg shadow-md hover:bg-stone-500 transition-colors text-lg">
-          + Novo Gasto
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Painel de Entradas */}
-        <div className="bg-white p-6 rounded-xl shadow-md overflow-hidden">
-          <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Entradas</h3>
-          {entradas.length === 0 ? <p className="text-stone-500">Nenhuma entrada registada.</p> : (
-            <ul className="space-y-3">
-              {entradas.map(item => (
-                <li key={item.id} className="p-3 bg-green-50 rounded-lg flex justify-between items-center border border-green-200">
-                  <div>
-                    <p className="font-semibold text-stone-800">{item.description}</p>
-                    <p className="text-sm text-stone-500">{item.date}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <p className="font-bold text-green-600">+ R$ {parseFloat(item.value).toFixed(2)}</p>
-                    <button onClick={() => handleDeleteTransaction(item.id, 'entrada')} className="text-stone-400 hover:text-red-600 transition-colors">
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd"></path></svg>
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        
-        {/* Painel de Gastos */}
-        <div className="bg-white p-6 rounded-xl shadow-md overflow-hidden">
-          <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Gastos</h3>
-          {gastos.length === 0 ? <p className="text-stone-500">Nenhum gasto registado.</p> : (
-            <ul className="space-y-3">
-              {gastos.map(item => (
-                <li key={item.id} className="p-3 bg-red-50 rounded-lg flex justify-between items-center border border-red-200">
-                  <div>
-                    <p className="font-semibold text-stone-800">{item.description}</p>
-                    <p className="text-sm text-stone-500">{item.date}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <p className="font-bold text-red-600">- R$ {parseFloat(item.value).toFixed(2)}</p>
-                    <button onClick={() => handleDeleteTransaction(item.id, 'gasto')} className="text-stone-400 hover:text-red-600 transition-colors">
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd"></path></svg>
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-      
-      {/* Modal para adicionar transação */}
-      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Adicionar ${transactionType === 'entrada' ? 'Entrada' : 'Gasto'}`}>
-        <form onSubmit={handleAddTransaction} className="space-y-4">
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-stone-700">Descrição</label>
-            <input
-              type="text"
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              placeholder="Ex: Pagamento Cliente X"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="value" className="block text-sm font-medium text-stone-700">Valor (R$)</label>
-            <input
-              type="number"
-              id="value"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              placeholder="Ex: 500.00"
-              step="0.01"
-              required
-            />
-          </div>
-          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-            Adicionar
-          </button>
-        </form>
-      </Modal>
-    </div>
-  );
-};
-
-// === Componente para a Aba de Serviços e Planos ===
-const ServicosPlanos = ({ userId, isAuthReady }) => {
-  const [servicos, setServicos] = useState([]);
-  const [servicosAvulsos, setServicosAvulsos] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newPlanName, setNewPlanName] = useState('');
-  const [newPlanPrice, setNewPlanPrice] = useState('');
-  const [newPlanDescription, setNewPlanDescription] = useState('');
-
-  // Listener do Firestore
-  useEffect(() => {
-    if (!db || !userId || !isAuthReady) return;
-
-    const servicosRef = collection(db, 'artifacts', appId, 'users', userId, 'planos');
-    const unsubscribe = onSnapshot(servicosRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setServicos(data);
-    }, (error) => { console.error("Erro ao carregar planos:", error); });
-    
-    // Supondo que serviços avulsos são estáticos ou de uma coleção separada
-    // const servicosAvulsosRef = ...
-    // ...
-    
-    return () => unsubscribe();
-  }, [userId, isAuthReady]);
-
-  const handleAddPlan = async (e) => {
-    e.preventDefault();
-    if (newPlanName && newPlanPrice) {
-      const planoData = {
-        name: newPlanName,
-        price: newPlanPrice,
-        description: newPlanDescription,
+      window.firebase = {
+        initializeApp,
+        getAuth,
+        signInWithCustomToken,
+        signInAnonymously,
+        onAuthStateChanged,
+        getFirestore,
+        doc,
+        getDoc,
+        addDoc,
+        setDoc,
+        updateDoc,
+        deleteDoc,
+        onSnapshot,
+        collection,
+        query,
+        where,
+        getDocs,
       };
-
-      try {
-        const collectionRef = collection(db, 'artifacts', appId, 'users', userId, 'planos');
-        await setDoc(doc(collectionRef), planoData);
-        setNewPlanName('');
-        setNewPlanPrice('');
-        setNewPlanDescription('');
-        setIsModalOpen(false);
-      } catch (error) {
-        console.error("Erro ao adicionar plano:", error);
-      }
-    }
-  };
-
-  return (
-    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
-      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">💼 Serviços e Planos</h2>
-      <button onClick={() => setIsModalOpen(true)} className="mb-4 w-full py-2 px-4 bg-[#6A5A4A] text-white rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-        + Adicionar Novo Plano
-      </button>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        {servicos.length === 0 ? <p className="text-stone-500">Nenhum plano registado.</p> : servicos.map(plano => (
-          <div key={plano.id} className="bg-white p-6 rounded-xl shadow-lg border border-stone-200">
-            <h3 className="text-2xl font-bold mb-2 text-[#5E4D40]">{plano.name}</h3>
-            <p className="text-xl font-bold text-[#6A5A4A] mb-2">R$ {plano.price}</p>
-            <p className="text-sm text-stone-500">{plano.description}</p>
-          </div>
-        ))}
-      </div>
-      
-      <div className="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-        <h3 className="text-xl font-semibold mb-2 text-[#5E4D40]">Serviços Avulsos</h3>
-        <p className="text-sm text-stone-500">Esta secção não é persistente no momento, mas poderia ser adicionada à base de dados.</p>
-        <ul className="list-disc list-inside space-y-1 text-stone-700">
-          {servicosAvulsos.map((servico, index) => (
-            <li key={index}>{servico}</li>
-          ))}
-        </ul>
-      </div>
-
-      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Novo Plano">
-        <form onSubmit={handleAddPlan} className="space-y-4">
-          <div>
-            <label htmlFor="newPlanName" className="block text-sm font-medium text-stone-700">Nome do Plano</label>
-            <input
-              type="text"
-              id="newPlanName"
-              value={newPlanName}
-              onChange={(e) => setNewPlanName(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="newPlanPrice" className="block text-sm font-medium text-stone-700">Preço (R$)</label>
-            <input
-              type="text"
-              id="newPlanPrice"
-              value={newPlanPrice}
-              onChange={(e) => setNewPlanPrice(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              placeholder="Ex: XXX"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="newPlanDescription" className="block text-sm font-medium text-stone-700">Descrição</label>
-            <textarea
-              id="newPlanDescription"
-              value={newPlanDescription}
-              onChange={(e) => setNewPlanDescription(e.target.value)}
-              rows="3"
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-            ></textarea>
-          </div>
-          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-            Adicionar Plano
-          </button>
-        </form>
-      </Modal>
-    </div>
-  );
-};
-
-// === Componente para a Aba de Agenda com Calendário ===
-const Agenda = ({ userId, isAuthReady }) => {
-  const [agenda, setAgenda] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newEvent, setNewEvent] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    time: '',
-    serviceType: '',
-    location: ''
-  });
-  const [currentDate, setCurrentDate] = useState(new Date());
-
-  // Listener do Firestore
-  useEffect(() => {
-    if (!db || !userId || !isAuthReady) return;
-
-    const agendaRef = collection(db, 'artifacts', appId, 'users', userId, 'agenda');
-    const unsubscribe = onSnapshot(agendaRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAgenda(data);
-    }, (error) => { console.error("Erro ao carregar agenda:", error); });
-
-    return () => unsubscribe();
-  }, [userId, isAuthReady]);
-
-  const getMonthDays = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const days = [];
-    
-    const firstDayOfWeek = firstDay.getDay();
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      days.push(null);
-    }
-    
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-      days.push(new Date(year, month, d));
-    }
-    return days;
-  };
-  
-  const daysInMonth = getMonthDays(currentDate);
-
-  const handleAddEvent = async (e) => {
-    e.preventDefault();
-    const eventData = {
-      ...newEvent,
-    };
-    try {
-      const collectionRef = collection(db, 'artifacts', appId, 'users', userId, 'agenda');
-      await setDoc(doc(collectionRef), eventData);
-      setIsModalOpen(false);
-      setNewEvent({ date: new Date().toISOString().slice(0, 10), time: '', serviceType: '', location: '' });
-    } catch (error) {
-      console.error("Erro ao adicionar evento:", error);
-    }
-  };
-  
-  const hasEvent = (date) => {
-    return agenda.some(event => {
-      const eventDate = new Date(event.date);
-      return eventDate.toDateString() === date.toDateString();
-    });
-  };
-  
-  const getEventsForDay = (date) => {
-    return agenda.filter(event => {
-      const eventDate = new Date(event.date);
-      return eventDate.toDateString() === date.toDateString();
-    });
-  };
-  
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-  
-  const handlePreviousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-
-  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-  return (
-    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
-      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">📅 Agenda</h2>
-      
-      <div className="bg-white p-6 rounded-xl shadow-lg border border-stone-200">
-        <div className="flex justify-between items-center mb-4">
-          <button onClick={handlePreviousMonth} className="p-2 rounded-full hover:bg-stone-200 transition-colors">
-            <svg className="w-6 h-6 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-          </button>
-          <h3 className="text-xl font-semibold text-[#5E4D40]">{currentDate.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}</h3>
-          <button onClick={handleNextMonth} className="p-2 rounded-full hover:bg-stone-200 transition-colors">
-            <svg className="w-6 h-6 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-7 text-center text-sm font-semibold text-stone-500 mb-2">
-          {dayNames.map(day => <div key={day}>{day}</div>)}
-        </div>
-        
-        <div className="grid grid-cols-7 gap-1">
-          {daysInMonth.map((day, index) => (
-            <div
-              key={index}
-              className={`p-2 h-20 border rounded-lg overflow-hidden relative cursor-pointer
-                ${day ? 'bg-stone-50 border-stone-200' : 'bg-transparent border-transparent'}
-                ${day && hasEvent(day) ? 'bg-[#ffedc0] border-[#FFD966]' : ''}`}
-              onClick={() => day && setIsModalOpen(true)}
-            >
-              <span className={`font-bold ${day ? 'text-stone-800' : 'text-stone-300'}`}>{day?.getDate()}</span>
-              {day && getEventsForDay(day).map(event => (
-                <div key={event.id} className="text-xs mt-1 truncate bg-stone-300 rounded px-1 text-stone-800">
-                  {event.serviceType}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      <button onClick={() => setIsModalOpen(true)} className="mt-6 w-full py-2 px-4 bg-[#6A5A4A] text-white rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-        + Adicionar Evento
-      </button>
-
-      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Evento">
-        <form onSubmit={handleAddEvent} className="space-y-4">
-          <div>
-            <label htmlFor="date" className="block text-sm font-medium text-stone-700">Data</label>
-            <input
-              type="date"
-              id="date"
-              value={newEvent.date}
-              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="time" className="block text-sm font-medium text-stone-700">Horário</label>
-            <input
-              type="time"
-              id="time"
-              value={newEvent.time}
-              onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="serviceType" className="block text-sm font-medium text-stone-700">Tipo de Serviço</label>
-            <input
-              type="text"
-              id="serviceType"
-              value={newEvent.serviceType}
-              onChange={(e) => setNewEvent({ ...newEvent, serviceType: e.target.value })}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="location" className="block text-sm font-medium text-stone-700">Local</label>
-            <input
-              type="text"
-              id="location"
-              value={newEvent.location}
-              onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-            Adicionar Evento
-          </button>
-        </form>
-      </Modal>
-    </div>
-  );
-};
-
-// === Componente para o Controle de Serviços ===
-const ControleServicos = ({ userId, isAuthReady }) => {
-  const [servicosEmAndamento, setServicosEmAndamento] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newServiceName, setNewServiceName] = useState('');
-  
-  // Listener do Firestore
-  useEffect(() => {
-    if (!db || !userId || !isAuthReady) return;
-
-    const servicosRef = collection(db, 'artifacts', appId, 'users', userId, 'servicos');
-    const unsubscribe = onSnapshot(servicosRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setServicosEmAndamento(data);
-    }, (error) => { console.error("Erro ao carregar serviços:", error); });
-
-    return () => unsubscribe();
-  }, [userId, isAuthReady]);
-
-  const handleAddService = async (e) => {
-    e.preventDefault();
-    if (newServiceName) {
-      const newService = {
-        name: newServiceName,
-        status: 'Agendado',
-      };
-      try {
-        const collectionRef = collection(db, 'artifacts', appId, 'users', userId, 'servicos');
-        await setDoc(doc(collectionRef), newService);
-        setNewServiceName('');
-        setIsModalOpen(false);
-      } catch (error) {
-        console.error("Erro ao adicionar serviço:", error);
-      }
-    }
-  };
-
-  const handleUpdateStatus = async (id, newStatus) => {
-    try {
-      const docRef = doc(db, 'artifacts', appId, 'users', userId, 'servicos', id);
-      await updateDoc(docRef, { status: newStatus });
-    } catch (error) {
-      console.error("Erro ao actualizar estado:", error);
-    }
-  };
-  
-  const handleDeleteService = async (id) => {
-    try {
-      const docRef = doc(db, 'artifacts', appId, 'users', userId, 'servicos', id);
-      await deleteDoc(docRef);
-    } catch (error) {
-      console.error("Erro ao eliminar serviço:", error);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Agendado': return 'bg-yellow-200 text-yellow-800 border-yellow-300';
-      case 'Em andamento': return 'bg-blue-200 text-blue-800 border-blue-300';
-      case 'Enviado para o cliente': return 'bg-purple-200 text-purple-800 border-purple-300';
-      case 'Aprovado pelo cliente': return 'bg-green-200 text-green-800 border-green-300';
-      case 'Concluído/Entregue': return 'bg-gray-200 text-gray-800 border-gray-300';
-      default: return 'bg-stone-200 text-stone-800';
-    }
-  };
-
-  return (
-    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
-      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">✅ Controlo de Serviços</h2>
-      <button onClick={() => setIsModalOpen(true)} className="mb-4 w-full py-2 px-4 bg-[#6A5A4A] text-white rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-        + Adicionar Novo Serviço
-      </button>
-      
-      <div className="bg-white p-6 rounded-xl shadow-md overflow-hidden">
-        {servicosEmAndamento.length === 0 ? <p className="text-stone-500">Nenhum serviço em andamento.</p> : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {servicosEmAndamento.map(service => (
-              <div key={service.id} className="p-4 bg-stone-50 rounded-lg border border-stone-200 flex flex-col justify-between shadow">
-                <div className="flex justify-between items-center mb-2">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getStatusColor(service.status)}`}>
-                    {service.status}
-                  </span>
-                  <button onClick={() => handleDeleteService(service.id)} className="text-stone-400 hover:text-red-600 transition-colors">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd"></path></svg>
-                  </button>
-                </div>
-                <p className="text-lg font-bold text-stone-800 mb-2">{service.name}</p>
-                <div className="mt-auto">
-                  <select
-                    value={service.status}
-                    onChange={(e) => handleUpdateStatus(service.id, e.target.value)}
-                    className="w-full p-2 border rounded-lg bg-white text-stone-700 text-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-                  >
-                    <option value="Agendado">Agendado</option>
-                    <option value="Em andamento">Em andamento</option>
-                    <option value="Enviado para o cliente">Enviado para o cliente</option>
-                    <option value="Aprovado pelo cliente">Aprovado pelo cliente</option>
-                    <option value="Concluído/Entregue">Concluído/Entregue</option>
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <Modal show={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Novo Serviço">
-        <form onSubmit={handleAddService} className="space-y-4">
-          <div>
-            <label htmlFor="newServiceName" className="block text-sm font-medium text-stone-700">Nome do Serviço</label>
-            <input
-              type="text"
-              id="newServiceName"
-              value={newServiceName}
-              onChange={(e) => setNewServiceName(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <button type="submit" className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors">
-            Adicionar Serviço
-          </button>
-        </form>
-      </Modal>
-    </div>
-  );
-};
-
-// === Componente para o Painel de Administração ===
-const AdminPanel = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-
-  const handleRegisterUser = async (e) => {
-    e.preventDefault();
-    if (!email || !password) return;
-
-    setIsRegistering(true);
-    setMessage('');
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      const userDocRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile');
-      await setDoc(userDocRef, {
-        email: user.email,
-        createdAt: new Date().toISOString()
-      });
-
-      setMessage(`Utilizador ${email} registado com sucesso!`);
-      setEmail('');
-      setPassword('');
-    } catch (error) {
-      console.error("Erro ao registar utilizador:", error);
-      setMessage(`Erro ao registar: ${error.message}`);
-    } finally {
-      setIsRegistering(false);
-    }
-  };
-
-  return (
-    <div className="p-4 bg-stone-100 rounded-xl shadow-inner">
-      <h2 className="text-2xl font-bold mb-4 text-[#5E4D40]">🔑 Painel de Administração</h2>
-      <div className="bg-white p-6 rounded-xl shadow-md border border-stone-200">
-        <h3 className="text-xl font-semibold mb-4 text-[#5E4D40]">Registar Novo Utilizador</h3>
-        <form onSubmit={handleRegisterUser} className="space-y-4">
-          <div>
-            <label htmlFor="new-user-email" className="block text-sm font-medium text-stone-700">E-mail</label>
-            <input
-              type="email"
-              id="new-user-email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="new-user-password" className="block text-sm font-medium text-stone-700">Senha</label>
-            <input
-              type="password"
-              id="new-user-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full border-stone-300 rounded-md shadow-sm focus:ring-[#6A5A4A] focus:border-[#6A5A4A]"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full py-2 px-4 bg-[#6A5A4A] text-white font-semibold rounded-lg shadow-md hover:bg-[#5E4D40] transition-colors"
-            disabled={isRegistering}
-          >
-            {isRegistering ? 'A registar...' : 'Registar Utilizador'}
-          </button>
-        </form>
-        {message && <p className={`mt-4 text-sm ${message.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{message}</p>}
-      </div>
-    </div>
-  );
-};
-
-// === Componente Principal do Aplicativo ===
-const App = () => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const [currentTab, setCurrentTab] = useState('gastos');
-  const [isCustomAdmin, setIsCustomAdmin] = useState(false);
-
-  // Inicialização do Firebase e listener de autenticação
-  useEffect(() => {
-    const initFirebase = async () => {
-      if (!app) {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-      }
-      
-      const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          setCurrentUser(user);
-          // Verifica se o usuário é o admin padrão com base no email
-          if (user.email === 'admin@vux.com') {
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
-          }
-        } else {
-          setCurrentUser(null);
-          setIsAdmin(false);
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
         }
-        setIsAuthReady(true);
-      });
-      
-      // Tentativa de login automático se houver um token
-      if (initialAuthToken) {
-        try {
-          await signInWithCustomToken(auth, initialAuthToken);
-        } catch (error) {
-          console.error("Erro na autenticação inicial:", error);
+        .vux-logo {
+            background-color: #4b3e34;
+            color: #d6cdc3;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
         }
-      } else {
-          try {
-            await signInAnonymously(auth);
-          } catch (error) {
-            console.error("Erro na autenticação anônima:", error);
-          }
-      }
-      return () => unsubscribeAuth();
-    };
-    initFirebase();
-  }, []);
+        .sidebar-btn.active {
+            background-color: #2e2621;
+            color: white;
+            border-left: 4px solid;
+        }
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-slide-in {
+            animation: slide-in 0.5s forwards;
+        }
+        @keyframes slide-in {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .text-custom-green { color: #4CAF50; }
+        .bg-custom-green { background-color: #4CAF50; }
+        .text-custom-red { color: #F44336; }
+        .bg-custom-red { background-color: #F44336; }
+        .bg-custom-blue { background-color: #2196F3; }
+        .text-custom-blue { color: #2196F3; }
+        .bg-custom-gray { background-color: #f3f4f6; }
 
-  const login = async (loginId, password) => {
-    setIsAuthenticating(true);
-    setLoginError('');
-    setIsCustomAdmin(false); // Resetar o estado de admin personalizado
-
-    if (loginId === 'Admin.Vux' && password === '1234') {
-      try {
-        await signInAnonymously(auth);
-        setIsCustomAdmin(true);
-        setIsAdmin(true); // Definir o estado de admin
-      } catch (error) {
-        console.error("Erro no login Admin:", error);
-        setLoginError('Não foi possível fazer o login de administrador.');
-      }
-    } else if (loginId.includes('@')) { // Verifica se o login parece um e-mail
-      try {
-        await signInWithEmailAndPassword(auth, loginId, password);
-        // O onAuthStateChanged tratará de definir o currentUser e o isAdmin
-      } catch (error) {
-        console.error("Erro no login:", error);
-        setLoginError('Login ou senha incorretos.');
-      }
-    } else {
-      setLoginError('O login deve ser um endereço de e-mail válido ou "Admin.Vux".');
-    }
-    setIsAuthenticating(false);
-  };
-
-  const logout = async () => {
-    try {
-      if (isCustomAdmin) {
-        await signOut(auth); // Sair do modo anónimo
-        setIsCustomAdmin(false);
-      } else {
-        await signOut(auth);
-      }
-    } catch (error) {
-      console.error("Erro no logout:", error);
-    }
-  };
-
-  const renderTabContent = () => {
-    if (!isAuthReady) return null;
-    
-    // Renderiza a tela de login se não houver um utilizador ou um admin personalizado
-    if (!currentUser && !isCustomAdmin) {
-      return <LoginScreen login={login} loginError={loginError} isAuthenticating={isAuthenticating} />;
-    }
-    
-    // Fornece um userId para o admin personalizado ou para o utilizador autenticado
-    const userId = isCustomAdmin ? 'admin_vux' : currentUser?.uid;
-    
-    switch (currentTab) {
-      case 'gastos':
-        return <GastosEntradas userId={userId} isAuthReady={isAuthReady} />;
-      case 'servicos':
-        return <ServicosPlanos userId={userId} isAuthReady={isAuthReady} />;
-      case 'agenda':
-        return <Agenda userId={userId} isAuthReady={isAuthReady} />;
-      case 'controle':
-        return <ControleServicos userId={userId} isAuthReady={isAuthReady} />;
-      case 'admin':
-        return <AdminPanel />;
-      default:
-        return null;
-    }
-  };
-  
-  // Condição para mostrar o menu e o conteúdo principal
-  if (!isAuthReady || (!currentUser && !isCustomAdmin)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-200 font-inter">
-        {renderTabContent()}
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative min-h-screen flex bg-stone-200 font-inter">
-      <div className="fixed top-0 left-0 p-4 z-50">
-        <button onClick={() => setShowMenu(!showMenu)} className="p-2 bg-stone-400 rounded-full shadow-lg hover:bg-stone-500 transition-colors">
-          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-          </svg>
-        </button>
-      </div>
-
-      {showMenu && <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setShowMenu(false)}></div>}
-
-      <aside className={`fixed inset-y-0 left-0 bg-[#5E4D40] text-white w-64 p-4 transform ${showMenu ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50`}>
-        <div className="flex items-center mb-8 justify-between">
-          <div className="flex items-center">
-            <span className="text-4xl font-black text-white">VUX</span>
-            <span className="text-4xl text-stone-300 font-extrabold -ml-1">.</span>
-          </div>
-          <button onClick={() => setShowMenu(false)} className="text-stone-300 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
+        /* Estilos para o autocomplete */
+        .autocomplete-container {
+            position: relative;
+        }
+        .autocomplete-results {
+            position: absolute;
+            z-index: 10;
+            width: 100%;
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            margin-top: 0.25rem;
+        }
+        .autocomplete-result {
+            padding: 0.75rem;
+            cursor: pointer;
+            transition-colors duration-150 ease-in-out;
+        }
+        .autocomplete-result:hover {
+            background-color: #f3f4f6;
+        }
+        /* Estilos para os botões de status */
+        .status-button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .status-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .status-button.active {
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        /* Estilos para o acordeão */
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+        }
+        .collapsible-content.expanded {
+            max-height: 500px;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+    </style>
+</head>
+<body class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-48 bg-[#392d26] shadow-lg flex-col items-center py-8 z-50 hidden md:flex" id="sidebar">
+        <!-- VUX Logo -->
+        <div class="vux-logo h-16 w-16 mb-12 text-xl">
+            VUX
         </div>
-        <nav>
-          <ul className="space-y-2">
-            <li>
-              <button 
-                onClick={() => { setCurrentTab('gastos'); setShowMenu(false); }}
-                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'gastos' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
-              >
-                📊 Gastos e Entradas
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setCurrentTab('servicos'); setShowMenu(false); }}
-                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'servicos' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
-              >
-                💼 Serviços e Planos
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setCurrentTab('agenda'); setShowMenu(false); }}
-                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'agenda' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
-              >
-                📅 Agenda
-              </button>
-            </li>
-            <li>
-              <button 
-                onClick={() => { setCurrentTab('controle'); setShowMenu(false); }}
-                className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'controle' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
-              >
-                ✅ Controlo de Serviços
-              </button>
-            </li>
-            {isAdmin && (
-              <li>
-                <button 
-                  onClick={() => { setCurrentTab('admin'); setShowMenu(false); }}
-                  className={`w-full text-left py-2 px-4 rounded-lg transition-colors ${currentTab === 'admin' ? 'bg-[#6A5A4A] text-white' : 'hover:bg-[#6A5A4A] text-stone-300'}`}
-                >
-                  ⚙️ Painel de Admin
-                </button>
-              </li>
-            )}
-          </ul>
+        <!-- Menu Items -->
+        <nav class="w-full">
+            <button id="entradas-saidas-btn" class="sidebar-btn w-full flex items-center px-6 py-3 text-gray-300 hover:bg-[#2e2621] transition-colors focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.076 60.076 0 0 1-1.5-2.812c.767-.213 1.583-.314 2.404-.314H18.75c.821 0 1.637.101 2.404.314a60.076 60.076 0 0 1-1.5 2.812m-16.5-6a60.076 60.076 0 0 0-1.5 2.812c.767-.213 1.583-.314 2.404-.314H18.75c.821 0 1.637.101 2.404.314a60.076 60.076 0 0 0-1.5-2.812m-16.5-6a60.076 60.076 0 0 1-1.5-2.812c.767-.213 1.583-.314 2.404-.314H18.75c.821 0 1.637.101 2.404.314a60.076 60.076 0 0 1-1.5 2.812m-16.5-6a60.076 60.076 0 0 0-1.5 2.812c.767-.213 1.583-.314 2.404-.314H18.75c.821 0 1.637.101 2.404.314a60.076 60.076 0 0 0-1.5 2.812" />
+                </svg>
+                Finanças
+            </button>
+            <button id="calendar-btn" class="sidebar-btn w-full flex items-center px-6 py-3 text-gray-300 hover:bg-[#2e2621] transition-colors focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Z" />
+                </svg>
+                Calendário
+            </button>
+            <!-- New button for Cadastro -->
+            <button id="cadastro-btn" class="sidebar-btn w-full flex items-center px-6 py-3 text-gray-300 hover:bg-[#2e2621] transition-colors focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75h.008v.008H12v-.008Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" />
+                </svg>
+                Cadastro
+            </button>
+            <!-- Services button, now shows active jobs -->
+            <button id="services-btn" class="sidebar-btn w-full flex items-center px-6 py-3 text-gray-300 hover:bg-[#2e2621] transition-colors focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21l2.835-2.835-5.835-5.835m-1.35-1.35L11.42 15.17M2.25 21L21 2.25m-1.35 1.35l-5.835 5.835m-1.35 1.35L2.25 21M17.25 21L2.25 6.75m1.5-1.5-1.5-1.5" />
+                </svg>
+                Serviços
+            </button>
+            <!-- New button for Prices -->
+            <button id="prices-btn" class="sidebar-btn w-full flex items-center px-6 py-3 text-gray-300 hover:bg-[#2e2621] transition-colors focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l-.75.682a4.5 4.5 0 01-1.464 2.898c-.854.912-2.193 1.258-3.218.89.155-.386.315-.758.48-1.112A6.742 6.742 0 0012 16.5a6.742 6.742 0 005.102-2.316l.48-1.112c1.025-.368 2.364-.022 3.218.89.154.386.314.758.48 1.112l-.75-.682a4.5 4.5 0 01-1.464-2.898c-.854-.912-2.193-1.258-3.218-.89a.75.75 0 01-.159-.625.75.75 0 01.49-.168h9.914a.75.75 0 01.49.168.75.75 0 01.159.625c-.01.167-.042.332-.094.492ZM16.5 6V4.5a2.25 2.25 0 00-2.25-2.25h-4.5A2.25 2.25 0 007.5 4.5V6" />
+                </svg>
+                Preços
+            </button>
         </nav>
-        <div className="absolute bottom-4 left-4 right-4">
-          <button onClick={logout} className="w-full py-2 px-4 bg-stone-400 text-stone-800 font-semibold rounded-lg shadow-md hover:bg-stone-500 transition-colors">
-            Sair
-          </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto relative hidden" id="app-container">
+        <!-- Message Box -->
+        <div id="message-box" class="fixed top-5 right-5 w-80 p-4 rounded-xl shadow-lg transition-transform transform hidden z-50">
+            <p id="message-text"></p>
         </div>
-      </aside>
+        
+        <!-- Loading Message -->
+        <div id="loading-message" class="flex flex-col items-center justify-center space-y-4 p-8 bg-white rounded-xl shadow-lg mb-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-gray-900 border-t-transparent"></div>
+            <p class="text-xl font-medium text-gray-800">A ligar ao servidor. Por favor, aguarde...</p>
+        </div>
 
-      <main className="flex-1 p-8 pt-20 max-w-7xl mx-auto transition-all duration-300 ease-in-out md:ml-64">
-        {renderTabContent()}
-      </main>
+        <!-- Entradas e Saídas Section -->
+        <section id="entradas-saidas-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Entradas e Saídas</h1>
+            
+            <!-- Resumo Financeiro -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-center font-bold">
+                <div class="bg-custom-blue text-white p-4 rounded-lg shadow-md">
+                    <h2 class="text-lg uppercase">Saldo Atual</h2>
+                    <span id="finance-balance-total" class="text-2xl mt-2 block">R$ 0,00</span>
+                </div>
+                <div class="bg-green-500 text-white p-4 rounded-lg shadow-md">
+                    <h2 class="text-lg uppercase">Total de Entradas</h2>
+                    <span id="finance-income-total" class="text-2xl mt-2 block">R$ 0,00</span>
+                </div>
+                <div class="bg-red-500 text-white p-4 rounded-lg shadow-md">
+                    <h2 class="text-lg uppercase">Total de Saídas</h2>
+                    <span id="finance-expense-total" class="text-2xl mt-2 block">R$ 0,00</span>
+                </div>
+            </div>
+
+            <!-- Formulário para Adicionar Transações -->
+            <form id="transaction-form" class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Adicionar Novo Lançamento</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="transaction-description" class="block text-sm font-medium text-gray-700">Descrição</label>
+                        <input type="text" id="transaction-description" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Ex: Salário, Aluguel" required>
+                    </div>
+                    <div>
+                        <label for="transaction-amount" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+                        <input type="number" id="transaction-amount" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Ex: 1500" step="0.01" required>
+                    </div>
+                    <div>
+                        <label for="transaction-type" class="block text-sm font-medium text-gray-700">Tipo</label>
+                        <select id="transaction-type" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                            <option value="income">Entrada</option>
+                            <option value="expense">Saída</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="mt-6 w-full md:w-auto bg-[#d6cdc3] text-[#392d26] py-3 px-6 rounded-xl shadow-lg hover:bg-[#c4b5a6] transition-colors font-semibold">Adicionar Lançamento</button>
+            </form>
+
+            <!-- Histórico de Transações -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Histórico de Transações</h2>
+                <ul id="transaction-list" class="space-y-4">
+                    <!-- Transações serão inseridas aqui via JavaScript -->
+                </ul>
+            </div>
+        </section>
+
+        <!-- Calendar Section -->
+        <section id="calendar-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Calendário de Eventos</h1>
+            
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <button id="prev-month-btn" class="bg-gray-300 text-gray-800 p-2 rounded-full hover:bg-gray-400 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                        </svg>
+                    </button>
+                    <h2 id="current-month-year" class="text-2xl font-semibold text-gray-800"></h2>
+                    <button id="next-month-btn" class="bg-gray-300 text-gray-800 p-2 rounded-full hover:bg-gray-400 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-7 text-center font-bold text-gray-500 mb-2">
+                    <span>Dom</span>
+                    <span>Seg</span>
+                    <span>Ter</span>
+                    <span>Qua</span>
+                    <span>Qui</span>
+                    <span>Sex</span>
+                    <span>Sáb</span>
+                </div>
+                
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1">
+                    <!-- Calendar days will be rendered here -->
+                </div>
+            </div>
+            
+            <button id="add-event-btn" class="bg-[#d6cdc3] text-[#392d26] px-6 py-3 rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors shadow-lg">Adicionar Evento</button>
+        </section>
+
+        <!-- New Cadastro Section -->
+        <section id="cadastro-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Cadastro de Serviços</h1>
+            
+            <!-- Form to add new service with price and type -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Adicionar Novo Serviço</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                    <div>
+                        <label for="service-name-input" class="block text-gray-600 font-medium mb-2">Nome do Serviço</label>
+                        <input type="text" id="service-name-input" placeholder="Ex: Manutenção de Software" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    </div>
+                    <div>
+                        <label for="service-price-input" class="block text-gray-600 font-medium mb-2">Preço (R$)</label>
+                        <input type="number" id="service-price-input" placeholder="Ex: 150.00" step="0.01" min="0" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    </div>
+                    <div>
+                        <label for="service-type-input" class="block text-gray-600 font-medium mb-2">Tipo de Serviço</label>
+                        <select id="service-type-input" class="w-full p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400">
+                            <option value="" disabled selected>Selecione um tipo</option>
+                            <option value="Básico">Básico</option>
+                            <option value="Intermediário">Intermediário</option>
+                            <option value="Premium">Premium</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button id="add-service-btn" class="w-full md:w-auto bg-[#d6cdc3] text-[#392d26] p-3 rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors shadow-lg">Salvar Serviço</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Services Section (now shows active jobs) -->
+        <section id="services-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Trabalhos em Andamento</h1>
+            
+            <!-- Button to start a new service, now in the correct location -->
+            <div class="mt-8 flex justify-end">
+                <button id="open-job-modal-btn" class="bg-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-600 transition-colors shadow-lg">
+                    Iniciar Novo Serviço
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div id="services-list" class="space-y-4">
+                    <!-- Active jobs will be listed here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- New Prices Section -->
+        <section id="prices-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Catálogo de Preços</h1>
+            <div id="prices-catalog" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Prices will be rendered here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal to add event -->
+    <div id="add-event-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md space-y-4">
+            <h3 class="text-2xl font-bold text-gray-800">Adicionar Novo Evento</h3>
+            <div>
+                <label for="event-title" class="block text-sm font-medium text-gray-700">Título</label>
+                <input type="text" id="event-title" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-gray-400 focus:ring focus:ring-gray-400 focus:ring-opacity-50">
+            </div>
+            <div>
+                <label for="event-date" class="block text-sm font-medium text-gray-700">Data</label>
+                <input type="date" id="event-date" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-gray-400 focus:ring focus:ring-gray-400 focus:ring-opacity-50">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-event-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors">Cancelar</button>
+                <button id="save-event-btn" class="px-4 py-2 bg-[#d6cdc3] text-[#392d26] rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors">Salvar</button>
+            </div>
+        </div>
     </div>
-  );
-};
 
-export default App;
+    <!-- Modal to start service -->
+    <div id="add-job-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md space-y-4">
+            <h3 class="text-2xl font-bold text-gray-800">Iniciar Novo Serviço</h3>
+            
+            <div>
+                <label for="service-search-input" class="block text-sm font-medium text-gray-700">Serviço</label>
+                <!-- Autocomplete input for services -->
+                <div class="autocomplete-container">
+                    <input type="text" id="service-search-input" placeholder="Buscar serviço..." class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400">
+                    <div id="autocomplete-results" class="autocomplete-results hidden"></div>
+                </div>
+                <!-- Hidden input to store the selected service ID for validation -->
+                <input type="hidden" id="selected-service-id">
+            </div>
+            
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-job-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors">Cancelar</button>
+                <button id="save-job-btn" class="px-4 py-2 bg-[#d6cdc3] text-[#392d26] rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import Firebase functionality from the global window object
+        const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } = window.firebase;
+
+        // Use these variables if they are available in the environment.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Firestore and Auth client references.
+        let db;
+        let auth;
+        let userId = null;
+        let servicesCollectionRef;
+        let jobsCollectionRef;
+        let financialTransactionsCollectionRef;
+
+        // References to HTML elements
+        const sidebar = document.getElementById('sidebar');
+        const appContainer = document.getElementById('app-container');
+        const calendarBtn = document.getElementById('calendar-btn');
+        const cadastroBtn = document.getElementById('cadastro-btn');
+        const servicesBtn = document.getElementById('services-btn');
+        const pricesBtn = document.getElementById('prices-btn');
+        const entradasSaidasBtn = document.getElementById('entradas-saidas-btn');
+
+        const calendarSection = document.getElementById('calendar-section');
+        const cadastroSection = document.getElementById('cadastro-section');
+        const servicesSection = document.getElementById('services-section');
+        const pricesSection = document.getElementById('prices-section');
+        const pricesCatalog = document.getElementById('prices-catalog');
+        const entradasSaidasSection = document.getElementById('entradas-saidas-section');
+
+        const loadingMessage = document.getElementById('loading-message');
+
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+
+        // References for Calendar
+        const calendarGrid = document.getElementById('calendar-grid');
+        const currentMonthYear = document.getElementById('current-month-year');
+        const prevMonthBtn = document.getElementById('prev-month-btn');
+        const nextMonthBtn = document.getElementById('next-month-btn');
+        const addEventBtn = document.getElementById('add-event-btn');
+        const addEventModal = document.getElementById('add-event-modal');
+        const cancelEventBtn = document.getElementById('cancel-event-btn');
+        const saveEventBtn = document.getElementById('save-event-btn');
+        const addJobModal = document.getElementById('add-job-modal');
+        const cancelJobBtn = document.getElementById('cancel-job-btn');
+        const saveJobBtn = document.getElementById('save-job-btn');
+        
+        // References for Services section
+        const openJobModalBtn = document.getElementById('open-job-modal-btn');
+
+        // References for the new services and cadastro sections
+        const serviceNameInput = document.getElementById('service-name-input');
+        const servicePriceInput = document.getElementById('service-price-input');
+        const serviceTypeInput = document.getElementById('service-type-input');
+        const addServiceBtn = document.getElementById('add-service-btn');
+        const servicesList = document.getElementById('services-list');
+        
+        // New references for autocomplete search
+        const serviceSearchInput = document.getElementById('service-search-input');
+        const autocompleteResults = document.getElementById('autocomplete-results');
+        const selectedServiceIdInput = document.getElementById('selected-service-id');
+
+        // References for the new Entradas e Saídas section
+        const transactionForm = document.getElementById('transaction-form');
+        const descriptionInput = document.getElementById('transaction-description');
+        const amountInput = document.getElementById('transaction-amount');
+        const typeInput = document.getElementById('transaction-type');
+        const transactionList = document.getElementById('transaction-list');
+        const balanceTotalEl = document.getElementById('finance-balance-total');
+        const incomeTotalEl = document.getElementById('finance-income-total');
+        const expenseTotalEl = document.getElementById('finance-expense-total');
+        
+        let services = []; // Array to store services
+        let selectedDate = new Date(); // Starts with the current date
+
+        // Status options for jobs
+        const jobStatusOptions = {
+            'agendado': 'Agendado',
+            'em_andamento': 'Em andamento (falta editar)',
+            'enviado_cliente': 'Enviado para o cliente',
+            'aprovado_cliente': 'Aprovado pelo cliente',
+            'concluido': 'Concluído/Entregue'
+        };
+
+        /**
+         * @param {string} message - A mensagem a ser exibida.
+         * @param {boolean} isError - true para erro, false para sucesso.
+         */
+        function showMessage(message, isError) {
+            messageText.textContent = message;
+            if (isError) {
+                messageBox.className = 'fixed top-5 right-5 w-80 p-4 rounded-xl shadow-lg transition-transform transform bg-red-500 text-white animate-slide-in';
+            } else {
+                messageBox.className = 'fixed top-5 right-5 w-80 p-4 rounded-xl shadow-lg transition-transform transform bg-green-500 text-white animate-slide-in';
+            }
+            messageBox.classList.remove('hidden');
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 3000);
+        }
+
+        /**
+         * @param {string} sectionName - O nome da seção a ser exibida ('dashboard', 'calendar', etc.).
+         */
+        function renderActiveSection(sectionName) {
+            const sections = {
+                'calendar': { element: calendarSection, button: calendarBtn },
+                'cadastro': { element: cadastroSection, button: cadastroBtn },
+                'services': { element: servicesSection, button: servicesBtn },
+                'prices': { element: pricesSection, button: pricesBtn },
+                'entradas-saidas': { element: entradasSaidasSection, button: entradasSaidasBtn }
+            };
+
+            for (const name in sections) {
+                const section = sections[name];
+                if (name === sectionName) {
+                    section.element.classList.remove('hidden');
+                    section.button.classList.add('active');
+                } else {
+                    section.element.classList.add('hidden');
+                    section.button.classList.remove('active');
+                }
+            }
+        }
+        
+        /**
+         * Salva um novo serviço no Firestore com validação.
+         */
+        async function saveService() {
+            if (!servicesCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            const serviceName = serviceNameInput.value.trim();
+            const servicePrice = parseFloat(servicePriceInput.value);
+            const serviceType = serviceTypeInput.value;
+            
+            if (!serviceName) {
+                showMessage('O nome do serviço não pode ser vazio.', true);
+                return;
+            }
+            if (isNaN(servicePrice) || servicePrice < 0) {
+                showMessage('Por favor, insira um preço válido.', true);
+                return;
+            }
+            if (!serviceType) {
+                showMessage('Por favor, selecione um tipo de serviço.', true);
+                return;
+            }
+
+            try {
+                await addDoc(servicesCollectionRef, { 
+                    service_name: serviceName,
+                    price: servicePrice,
+                    type: serviceType
+                });
+                showMessage('Serviço salvo com sucesso!', false);
+                serviceNameInput.value = '';
+                servicePriceInput.value = '';
+                serviceTypeInput.value = '';
+            } catch (error) {
+                console.error('Erro ao salvar serviço:', error);
+                showMessage('Erro ao salvar serviço: ' + error.message, true);
+            }
+        }
+        
+        /**
+         * Busca e renderiza serviços em tempo real.
+         */
+        function fetchServices() {
+            if (!servicesCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            onSnapshot(servicesCollectionRef, (snapshot) => {
+                const servicesData = [];
+                snapshot.forEach(doc => {
+                    servicesData.push({ id: doc.id, ...doc.data() });
+                });
+                services = servicesData.sort((a, b) => a.service_name.localeCompare(b.service_name));
+                renderPrices(services);
+            }, (error) => {
+                console.error("Erro ao carregar serviços:", error);
+                showMessage("Erro ao carregar serviços: " + error.message, true);
+            });
+        }
+        
+        /**
+         * Renderiza o catálogo de preços na seção "Preços" com colapsabilidade.
+         * @param {Array<Object>} services - Array de objetos de serviço.
+         */
+        function renderPrices(services) {
+            pricesCatalog.innerHTML = '';
+            
+            const groupedServices = services.reduce((acc, service) => {
+                const type = service.type || 'Sem Categoria';
+                if (!acc[type]) {
+                    acc[type] = [];
+                }
+                acc[type].push(service);
+                return acc;
+            }, {});
+
+            const planOrder = ['Básico', 'Intermediário', 'Premium'];
+
+            planOrder.forEach(plan => {
+                const planServices = groupedServices[plan] || [];
+                
+                const planContainer = document.createElement('div');
+                planContainer.className = 'bg-white p-4 rounded-xl shadow-lg';
+
+                const planHeader = document.createElement('button');
+                planHeader.className = 'w-full flex justify-between items-center text-left font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 p-4 rounded-xl';
+                planHeader.innerHTML = `
+                    <span class="text-xl">${planServices.length > 0 ? `Plano ${plan}` : `${plan} (vazio)`}</span>
+                    <svg class="arrow-icon w-6 h-6 text-slate-500 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                `;
+                planContainer.appendChild(planHeader);
+                
+                const servicesListDiv = document.createElement('div');
+                servicesListDiv.className = 'collapsible-content';
+                
+                const servicesListUl = document.createElement('ul');
+                servicesListUl.className = 'list-none space-y-4 text-slate-600 mt-4';
+
+                if (planServices.length > 0) {
+                    planServices.forEach(service => {
+                        const serviceItem = document.createElement('li');
+                        serviceItem.className = 'flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0';
+                        serviceItem.innerHTML = `
+                            <span class="text-gray-700">${service.service_name}</span>
+                            <span class="text-gray-900 font-semibold">R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        `;
+                        servicesListUl.appendChild(serviceItem);
+                    });
+                } else {
+                    const noServicesMessage = document.createElement('p');
+                    noServicesMessage.className = 'text-center text-gray-500';
+                    noServicesMessage.textContent = 'Nenhum serviço disponível neste plano.';
+                    servicesListUl.appendChild(noServicesMessage);
+                }
+
+                servicesListDiv.appendChild(servicesListUl);
+                planContainer.appendChild(servicesListDiv);
+                
+                pricesCatalog.appendChild(planContainer);
+
+                // Event listener for collapsing/expanding
+                planHeader.addEventListener('click', () => {
+                    servicesListDiv.classList.toggle('expanded');
+                    const arrowIcon = planHeader.querySelector('.arrow-icon');
+                    arrowIcon.classList.toggle('rotate-90');
+                });
+            });
+        }
+
+        /**
+         * Renderiza o calendário.
+         */
+        function renderCalendar() {
+            calendarGrid.innerHTML = '';
+            const month = selectedDate.getMonth();
+            const year = selectedDate.getFullYear();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+
+            currentMonthYear.textContent = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(selectedDate);
+            
+            const startDayOfWeek = firstDay.getDay();
+
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'p-3';
+                calendarGrid.appendChild(emptyCell);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayCell = document.createElement('div');
+                dayCell.className = 'p-3 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors relative';
+                dayCell.textContent = day;
+                dayCell.dataset.date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                const eventDay = new Date(year, month, day);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                if (eventDay.toDateString() === today.toDateString()) {
+                    dayCell.classList.add('bg-[#d6cdc3]', 'text-[#392d26]');
+                }
+
+                dayCell.addEventListener('click', () => {
+                    showMessage(`Clicou em ${dayCell.dataset.date}`, false);
+                });
+
+                calendarGrid.appendChild(dayCell);
+            }
+        }
+        
+        /**
+         * Adiciona um novo trabalho de serviço com status inicial 'agendado'.
+         */
+        async function addServiceJob() {
+            if (!jobsCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            
+            const serviceId = selectedServiceIdInput.value;
+            const serviceName = serviceSearchInput.value.trim();
+
+            if (!serviceId || !serviceName) {
+                showMessage('Por favor, selecione um serviço válido para iniciar.', true);
+                return;
+            }
+            
+            try {
+                // Get the service data to save its price
+                const serviceDoc = await getDoc(doc(db, servicesCollectionRef.path, serviceId));
+                if (!serviceDoc.exists()) {
+                    showMessage('Serviço não encontrado.', true);
+                    return;
+                }
+                const serviceData = serviceDoc.data();
+
+                await addDoc(jobsCollectionRef, {
+                    serviceId,
+                    serviceName: serviceData.service_name,
+                    price: serviceData.price,
+                    status: 'agendado', // Define o status inicial como 'agendado'
+                    createdAt: new Date().toISOString()
+                });
+                showMessage(`Iniciando trabalho: ${serviceData.service_name}`, false);
+                addJobModal.classList.add('hidden');
+                serviceSearchInput.value = '';
+                selectedServiceIdInput.value = '';
+                autocompleteResults.classList.add('hidden');
+            } catch (error) {
+                console.error("Erro ao salvar o trabalho:", error);
+                showMessage("Erro ao salvar o trabalho: " + error.message, true);
+            }
+        }
+
+        /**
+         * Adiciona uma nova transação financeira ao Firestore.
+         */
+        async function addFinancialTransaction() {
+            if (!financialTransactionsCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+
+            const description = descriptionInput.value.trim();
+            const amount = parseFloat(amountInput.value);
+            const type = typeInput.value;
+
+            if (description === '' || isNaN(amount) || amount <= 0) {
+                showMessage('Por favor, preencha todos os campos com valores válidos.', true);
+                return;
+            }
+            
+            try {
+                await addDoc(financialTransactionsCollectionRef, {
+                    description,
+                    amount,
+                    type,
+                    date: new Date().toISOString()
+                });
+                showMessage(`Lançamento de ${type === 'income' ? 'Entrada' : 'Saída'} adicionado.`, false);
+                descriptionInput.value = '';
+                amountInput.value = '';
+            } catch (error) {
+                console.error('Erro ao adicionar transação:', error);
+                showMessage('Erro ao adicionar transação: ' + error.message, true);
+            }
+        }
+
+        /**
+         * Deleta uma transação financeira do Firestore.
+         * @param {string} transactionId - O ID do documento da transação.
+         */
+        async function deleteFinancialTransaction(transactionId) {
+            if (!financialTransactionsCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, financialTransactionsCollectionRef.path, transactionId));
+                showMessage('Lançamento deletado com sucesso!', false);
+            } catch (error) {
+                console.error('Erro ao deletar transação:', error);
+                showMessage('Erro ao deletar transação: ' + error.message, true);
+            }
+        }
+
+        /**
+         * Configura o ouvinte de dados para transações financeiras.
+         */
+        function setupFinancialListener() {
+            if (!financialTransactionsCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            onSnapshot(financialTransactionsCollectionRef, (snapshot) => {
+                const transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                const incomeTotal = transactions
+                    .filter(t => t.type === 'income')
+                    .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+                const expenseTotal = transactions
+                    .filter(t => t.type === 'expense')
+                    .reduce((sum, t) => sum + (t.amount || 0), 0);
+                
+                const balanceTotal = incomeTotal - expenseTotal;
+
+                balanceTotalEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(balanceTotal);
+                incomeTotalEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(incomeTotal);
+                expenseTotalEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(expenseTotal);
+
+                // Renderiza a lista de transações
+                transactionList.innerHTML = '';
+                if (transactions.length === 0) {
+                    transactionList.innerHTML = '<p class="text-gray-500">Nenhum lançamento registrado.</p>';
+                } else {
+                    transactions.forEach(transaction => {
+                        const itemClass = transaction.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                        const listItem = document.createElement('li');
+                        listItem.classList.add('flex', 'justify-between', 'items-center', 'p-4', 'rounded-lg', 'shadow-sm', itemClass);
+                        const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(transaction.amount);
+
+                        listItem.innerHTML = `
+                            <div class="flex-1 min-w-0">
+                                <span class="font-medium truncate">${transaction.description}</span>
+                            </div>
+                            <span class="font-bold text-lg mx-4">${formattedAmount}</span>
+                            <button class="delete-transaction-btn text-gray-500 hover:text-red-500 font-bold ml-2" data-id="${transaction.id}">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        `;
+                        transactionList.appendChild(listItem);
+                    });
+                }
+            }, (error) => {
+                console.error("Erro ao carregar transações:", error);
+                showMessage("Erro ao carregar transações: " + error.message, true);
+            });
+        }
+
+        /**
+         * Configura o ouvinte de dados para trabalhos (jobs) em tempo real.
+         */
+        function setupJobsListener() {
+            if (!jobsCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            onSnapshot(jobsCollectionRef, (snapshot) => {
+                const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderJobs(jobs);
+            }, (error) => {
+                console.error("Erro ao carregar trabalhos:", error);
+                showMessage("Erro ao carregar trabalhos: " + error.message, true);
+            });
+        }
+
+        /**
+         * Renderiza a lista de trabalhos na seção "Serviços".
+         * @param {Array<Object>} jobs - Array de objetos de trabalho.
+         */
+        function renderJobs(jobs) {
+            servicesList.innerHTML = '';
+            if (jobs.length === 0) {
+                servicesList.innerHTML = '<p class="text-gray-500">Nenhum trabalho em andamento. Clique em "Iniciar Novo Serviço" para começar!</p>';
+            } else {
+                jobs.forEach(job => {
+                    const jobDiv = document.createElement('div');
+                    jobDiv.className = 'bg-gray-100 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between space-y-2 md:space-y-0';
+                    const formattedPrice = job.price ? `R$ ${job.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Preço não definido';
+                    
+                    jobDiv.innerHTML = `
+                        <div class="flex flex-col flex-grow">
+                            <span class="text-lg font-semibold text-gray-800">${job.serviceName}</span>
+                            <span class="text-sm text-gray-500">${formattedPrice}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                             <select class="job-status-select p-2 rounded-xl border border-gray-300 shadow-sm transition-colors" data-job-id="${job.id}">
+                             </select>
+                            <button class="delete-job-btn text-red-500 hover:text-red-700 transition-colors" data-job-id="${job.id}">
+                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.924a2.25 2.25 0 0 1-2.244-2.077L4.77 5.75c-.052-.16-.084-.332-.094-.492a.75.75 0 0 1 .159-.625.75.75 0 0 1 .49-.168h9.914a.75.75 0 0 1 .49.168.75.75 0 0 1 .159.625c-.01.167-.042.332-.094.492ZM16.5 6V4.5a2.25 2.25 0 0 0-2.25-2.25h-4.5A2.25 2.25 0 0 0 7.5 4.5V6" />
+                               </svg>
+                            </button>
+                        </div>
+                    `;
+                    servicesList.appendChild(jobDiv);
+                    
+                    const selectEl = jobDiv.querySelector('.job-status-select');
+                    for (const [key, value] of Object.entries(jobStatusOptions)) {
+                        const option = document.createElement('option');
+                        option.value = key;
+                        option.textContent = value;
+                        if (job.status === key) {
+                            option.selected = true;
+                        }
+                        selectEl.appendChild(option);
+                    }
+                });
+            }
+        }
+
+        /**
+         * Atualiza o status de um trabalho no Firestore.
+         * @param {string} jobId - ID do trabalho.
+         * @param {string} newStatus - Novo status do trabalho.
+         */
+        async function updateJobStatus(jobId, newStatus) {
+            try {
+                await updateDoc(doc(db, jobsCollectionRef.path, jobId), {
+                    status: newStatus
+                });
+                showMessage('Status do trabalho atualizado com sucesso!', false);
+            } catch (error) {
+                console.error("Erro ao atualizar o status:", error);
+                showMessage("Erro ao atualizar o status: " + error.message, true);
+            }
+        }
+
+
+        /**
+         * Inicializa o aplicativo principal após o login.
+         */
+        function startApp() {
+            appContainer.classList.remove('hidden');
+            sidebar.classList.remove('hidden');
+            
+            loadingMessage.classList.add('hidden');
+            renderActiveSection('entradas-saidas');
+            
+            fetchServices();
+            setupFinancialListener();
+            setupJobsListener(); // New: setup listener for jobs
+        }
+
+        // Initialize Firebase and set up the authentication state listener
+        window.onload = function() {
+            if (!firebaseConfig.projectId) {
+                console.error("Firebase configuration is missing. Ensure that __firebase_config is available.");
+                document.body.innerHTML = `<p class="text-xl font-medium text-red-600 m-8">Erro: Configuração do Firebase em falta.</p>`;
+                return;
+            }
+            
+            loadingMessage.classList.remove('hidden');
+
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    servicesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/services`);
+                    jobsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/jobs`);
+                    financialTransactionsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/financial-transactions`);
+                    
+                    startApp();
+                } else {
+                    if (initialAuthToken) {
+                        try {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } catch (error) {
+                            console.error("Error in custom token login:", error);
+                            showMessage("Erro no login. Tentando fazer login anonimamente.", true);
+                            signInAnonymously(auth);
+                        }
+                    } else {
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (error) {
+                            console.error("Error in anonymous login:", error);
+                            document.body.innerHTML = `<p class="text-xl font-medium text-red-600 m-8">Erro no login anônimo. Por favor, tente novamente.</p>`;
+                        }
+                    }
+                }
+            });
+        };
+
+        // Event listeners
+        calendarBtn.addEventListener('click', () => {
+            selectedDate = new Date();
+            renderCalendar();
+            renderActiveSection('calendar');
+        });
+
+        cadastroBtn.addEventListener('click', () => {
+            renderActiveSection('cadastro');
+        });
+
+        servicesBtn.addEventListener('click', () => {
+            if (jobsCollectionRef) {
+                renderActiveSection('services');
+            } else {
+                showMessage('O serviço de base de dados não está pronto.', true);
+            }
+        });
+
+        pricesBtn.addEventListener('click', () => {
+            // A correção foi feita aqui: o botão 'Preços' agora leva à seção 'Preços' novamente
+            renderActiveSection('prices');
+        });
+
+        entradasSaidasBtn.addEventListener('click', () => {
+            renderActiveSection('entradas-saidas');
+        });
+
+        prevMonthBtn.addEventListener('click', () => {
+            selectedDate.setMonth(selectedDate.getMonth() - 1);
+            renderCalendar();
+        });
+
+        nextMonthBtn.addEventListener('click', () => {
+            selectedDate.setMonth(selectedDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        addEventBtn.addEventListener('click', () => {
+            addEventModal.classList.remove('hidden');
+        });
+
+        cancelEventBtn.addEventListener('click', () => {
+            addEventModal.classList.add('hidden');
+        });
+
+        saveEventBtn.addEventListener('click', () => {
+            const title = document.getElementById('event-title').value;
+            const date = document.getElementById('event-date').value;
+            if (title && date) {
+                showMessage('Evento salvo com sucesso! (Lógica simplificada)', false);
+                addEventModal.classList.add('hidden');
+            } else {
+                showMessage('Título e data são obrigatórios.', true);
+            }
+        });
+        
+        // Listener para o novo seletor de status de serviço
+        servicesList.addEventListener('change', (event) => {
+            const selectEl = event.target.closest('.job-status-select');
+            if (selectEl) {
+                const jobId = selectEl.dataset.jobId;
+                const newStatus = selectEl.value;
+                if (jobId && newStatus) {
+                    updateJobStatus(jobId, newStatus);
+                }
+            }
+        });
+
+        servicesList.addEventListener('click', (event) => {
+            if (event.target.closest('.delete-job-btn')) {
+                const btn = event.target.closest('.delete-job-btn');
+                const jobId = btn.dataset.jobId;
+                if (jobId) {
+                     deleteJob(jobId);
+                }
+            }
+        });
+
+        async function deleteJob(jobId) {
+            if (!jobsCollectionRef) {
+                showMessage('O serviço de base de dados não está pronto.', true);
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, jobsCollectionRef.path, jobId));
+                showMessage('Trabalho deletado com sucesso!', false);
+            } catch (error) {
+                console.error('Erro ao deletar trabalho:', error);
+                showMessage('Erro ao deletar trabalho: ' + error.message, true);
+            }
+        }
+        
+        openJobModalBtn.addEventListener('click', () => {
+            if (servicesCollectionRef) {
+                addJobModal.classList.remove('hidden');
+            } else {
+                showMessage('O serviço de base de dados não está pronto.', true);
+            }
+        });
+        
+        cancelJobBtn.addEventListener('click', () => {
+            addJobModal.classList.add('hidden');
+            serviceSearchInput.value = '';
+            selectedServiceIdInput.value = '';
+            autocompleteResults.classList.add('hidden');
+        });
+
+        saveJobBtn.addEventListener('click', addServiceJob);
+        
+        addServiceBtn.addEventListener('click', saveService);
+
+        transactionForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            addFinancialTransaction();
+        });
+
+        transactionList.addEventListener('click', (event) => {
+            const deleteBtn = event.target.closest('.delete-transaction-btn');
+            if (deleteBtn) {
+                const transactionId = deleteBtn.dataset.id;
+                deleteFinancialTransaction(transactionId);
+            }
+        });
+
+        // Autocomplete logic for service search
+        serviceSearchInput.addEventListener('keyup', (event) => {
+            const searchTerm = event.target.value.toLowerCase().trim();
+            autocompleteResults.innerHTML = '';
+            
+            if (searchTerm === '') {
+                autocompleteResults.classList.add('hidden');
+                return;
+            }
+
+            const filteredServices = services.filter(service => 
+                service.service_name.toLowerCase().includes(searchTerm)
+            );
+            
+            if (filteredServices.length > 0) {
+                autocompleteResults.classList.remove('hidden');
+                filteredServices.forEach(service => {
+                    const resultItem = document.createElement('div');
+                    resultItem.classList.add('autocomplete-result');
+                    resultItem.textContent = `${service.service_name} - R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    resultItem.dataset.serviceId = service.id;
+                    resultItem.dataset.serviceName = service.service_name;
+                    autocompleteResults.appendChild(resultItem);
+                });
+            } else {
+                autocompleteResults.classList.add('hidden');
+            }
+        });
+
+        autocompleteResults.addEventListener('click', (event) => {
+            const selectedItem = event.target.closest('.autocomplete-result');
+            if (selectedItem) {
+                const serviceId = selectedItem.dataset.serviceId;
+                const serviceName = selectedItem.dataset.serviceName;
+                
+                serviceSearchInput.value = serviceName;
+                selectedServiceIdInput.value = serviceId;
+                autocompleteResults.classList.add('hidden');
+            }
+        });
+
+        // Hide autocomplete results when clicking outside the modal
+        document.addEventListener('click', (event) => {
+            if (!addJobModal.contains(event.target)) {
+                autocompleteResults.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
