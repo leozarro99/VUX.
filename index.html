@@ -13,7 +13,7 @@
     <!-- Firebase Libraries -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-      import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+      import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
       import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
       
       window.firebase = {
@@ -34,6 +34,8 @@
         query,
         where,
         getDocs,
+        createUserWithEmailAndPassword,
+        signInWithEmailAndPassword
       };
     </script>
     <style>
@@ -131,7 +133,53 @@
     </style>
 </head>
 <body class="flex min-h-screen">
-    <!-- Sidebar -->
+    <!-- Tela de Login -->
+    <section id="login-screen" class="flex-1 flex items-center justify-center p-8">
+        <div class="w-full max-w-sm bg-white rounded-xl shadow-xl p-8 space-y-6">
+            <h2 class="text-3xl font-bold text-center text-gray-900">VUX Control</h2>
+            <p class="text-center text-gray-500">Faça login para continuar</p>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="login-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                    <input type="email" id="login-email" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="seu-email@exemplo.com" required>
+                </div>
+                <div>
+                    <label for="login-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="login-password" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Sua senha" required>
+                </div>
+                <button type="submit" class="w-full bg-[#392d26] text-white py-3 px-6 rounded-xl shadow-lg hover:bg-[#2e2621] transition-colors font-semibold">Entrar</button>
+            </form>
+            <div class="text-center">
+                <button id="signup-link" class="text-sm text-[#392d26] hover:underline">Não tem uma conta? Crie uma aqui.</button>
+            </div>
+            <div id="login-error-message" class="text-red-500 text-center font-medium hidden"></div>
+        </div>
+    </section>
+
+    <!-- Tela de Cadastro -->
+    <section id="signup-screen" class="flex-1 flex items-center justify-center p-8 hidden">
+        <div class="w-full max-w-sm bg-white rounded-xl shadow-xl p-8 space-y-6">
+            <h2 class="text-3xl font-bold text-center text-gray-900">Criar Conta</h2>
+            <p class="text-center text-gray-500">Crie uma conta para acessar o sistema</p>
+            <form id="signup-form" class="space-y-4">
+                <div>
+                    <label for="signup-email" class="block text-sm font-medium text-gray-700">E-mail</label>
+                    <input type="email" id="signup-email" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="seu-email@exemplo.com" required>
+                </div>
+                <div>
+                    <label for="signup-password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="signup-password" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Sua senha (mín. 6 caracteres)" required>
+                </div>
+                <button type="submit" class="w-full bg-[#392d26] text-white py-3 px-6 rounded-xl shadow-lg hover:bg-[#2e2621] transition-colors font-semibold">Cadastrar</button>
+            </form>
+            <div class="text-center">
+                <button id="login-link" class="text-sm text-[#392d26] hover:underline">Já tem uma conta? Faça login aqui.</button>
+            </div>
+            <div id="signup-error-message" class="text-red-500 text-center font-medium hidden"></div>
+        </div>
+    </section>
+
+    <!-- Sidebar e Conteúdo Principal (anteriormente existente, agora oculto no início) -->
     <aside class="w-48 bg-[#392d26] shadow-lg flex-col items-center py-8 z-50 hidden md:flex" id="sidebar">
         <!-- VUX Logo -->
         <div class="vux-logo h-16 w-16 mb-12 text-xl">
@@ -174,10 +222,16 @@
                 </svg>
                 Preços
             </button>
+            <!-- Logout Button -->
+            <button id="logout-btn" class="sidebar-btn w-full flex items-center px-6 py-3 text-gray-300 hover:bg-red-700 transition-colors focus:outline-none mt-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12a2.25 2.25 0 0 1 2.25 2.25v2.25" />
+                </svg>
+                Sair
+            </button>
         </nav>
     </aside>
 
-    <!-- Main Content -->
     <main class="flex-1 p-8 overflow-y-auto relative hidden" id="app-container">
         <!-- Message Box -->
         <div id="message-box" class="fixed top-5 right-5 w-80 p-4 rounded-xl shadow-lg transition-transform transform hidden z-50">
@@ -260,7 +314,6 @@
                         </svg>
                     </button>
                 </div>
-                
                 <div class="grid grid-cols-7 text-center font-bold text-gray-500 mb-2">
                     <span>Dom</span>
                     <span>Seg</span>
@@ -270,19 +323,16 @@
                     <span>Sex</span>
                     <span>Sáb</span>
                 </div>
-                
                 <div id="calendar-grid" class="grid grid-cols-7 gap-1">
                     <!-- Calendar days will be rendered here -->
                 </div>
             </div>
-            
             <button id="add-event-btn" class="bg-[#d6cdc3] text-[#392d26] px-6 py-3 rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors shadow-lg">Adicionar Evento</button>
         </section>
 
         <!-- New Cadastro Section -->
         <section id="cadastro-section" class="space-y-8 hidden">
             <h1 class="text-4xl font-bold text-gray-900">Cadastro de Serviços</h1>
-            
             <!-- Form to add new service with price and type -->
             <div class="bg-white rounded-xl shadow-lg p-6">
                 <h2 class="text-2xl font-semibold mb-4 text-gray-800">Adicionar Novo Serviço</h2>
@@ -301,826 +351,498 @@
                             <option value="" disabled selected>Selecione um tipo</option>
                             <option value="Básico">Básico</option>
                             <option value="Intermediário">Intermediário</option>
+                            <option value="Avançado">Avançado</option>
                             <option value="Premium">Premium</option>
                         </select>
                     </div>
-                </div>
-                <div class="mt-6 flex justify-end">
-                    <button id="add-service-btn" class="w-full md:w-auto bg-[#d6cdc3] text-[#392d26] p-3 rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors shadow-lg">Salvar Serviço</button>
+                    <div>
+                        <button id="add-service-btn" class="w-full bg-[#392d26] text-white py-3 px-6 rounded-xl shadow-lg hover:bg-[#2e2621] transition-colors font-semibold">Adicionar Serviço</button>
+                    </div>
                 </div>
             </div>
-        </section>
-
-        <!-- Services Section (now shows active jobs) -->
-        <section id="services-section" class="space-y-8 hidden">
-            <h1 class="text-4xl font-bold text-gray-900">Trabalhos em Andamento</h1>
-            
-            <!-- Button to start a new service, now in the correct location -->
-            <div class="mt-8 flex justify-end">
-                <button id="open-job-modal-btn" class="bg-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-600 transition-colors shadow-lg">
-                    Iniciar Novo Serviço
-                </button>
-            </div>
-
+            <!-- Service List -->
             <div class="bg-white rounded-xl shadow-lg p-6">
-                <div id="services-list" class="space-y-4">
-                    <!-- Active jobs will be listed here -->
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Serviços Cadastrados</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="services-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Services will be inserted here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
 
-        <!-- New Prices Section -->
-        <section id="prices-section" class="space-y-8 hidden">
-            <h1 class="text-4xl font-bold text-gray-900">Catálogo de Preços</h1>
-            <div id="prices-catalog" class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Prices will be rendered here -->
+        <!-- New Services Section -->
+        <section id="services-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Controle de Serviços Ativos</h1>
+            <div class="flex flex-wrap gap-4 mb-8">
+                <button id="add-job-btn" class="flex-1 min-w-[200px] bg-[#392d26] text-white py-3 px-6 rounded-xl shadow-lg hover:bg-[#2e2621] transition-colors font-semibold flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Adicionar Serviço Ativo
+                </button>
+                <div class="flex-1 min-w-[200px] relative">
+                    <input type="text" id="job-search" placeholder="Pesquisar serviços ativos..." class="w-full p-3 pl-10 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400">
+                    <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                </div>
+            </div>
+            <!-- Status filter buttons -->
+            <div class="flex flex-wrap gap-2 justify-center mb-8">
+                <button class="status-button active bg-gray-300 text-gray-800 py-2 px-6 rounded-full font-medium" data-status="all">Todos</button>
+                <button class="status-button bg-blue-500 text-white py-2 px-6 rounded-full font-medium" data-status="Em Andamento">Em Andamento</button>
+                <button class="status-button bg-green-500 text-white py-2 px-6 rounded-full font-medium" data-status="Concluído">Concluído</button>
+                <button class="status-button bg-red-500 text-white py-2 px-6 rounded-full font-medium" data-status="Cancelado">Cancelado</button>
+                <button class="status-button bg-orange-400 text-white py-2 px-6 rounded-full font-medium" data-status="Pendente">Pendente</button>
+            </div>
+            
+            <div id="jobs-list" class="space-y-6">
+                <!-- Job cards will be inserted here -->
             </div>
         </section>
 
+        <!-- Preços Section -->
+        <section id="prices-section" class="space-y-8 hidden">
+            <h1 class="text-4xl font-bold text-gray-900">Preços e Orçamentos</h1>
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Tabela de Preços</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome do Serviço</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço (R$)</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo de Serviço</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prices-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Services will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add Job Modal -->
+        <div id="addJobModal" class="modal fixed inset-0 flex items-center justify-center p-4 z-50 hidden">
+            <div class="modal-content bg-white p-6 rounded-xl shadow-xl w-full max-w-lg space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900">Adicionar Serviço Ativo</h2>
+                    <button id="closeAddJobModal" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <form id="add-job-form" class="space-y-4">
+                    <div class="autocomplete-container">
+                        <label for="service-search-input" class="block text-sm font-medium text-gray-700">Serviço</label>
+                        <input type="text" id="service-search-input" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Digite para buscar um serviço" required>
+                        <div id="autocomplete-results" class="autocomplete-results hidden"></div>
+                        <input type="hidden" id="selected-service-id">
+                    </div>
+                    <div>
+                        <label for="job-client" class="block text-sm font-medium text-gray-700">Cliente</label>
+                        <input type="text" id="job-client" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Nome do Cliente" required>
+                    </div>
+                    <div>
+                        <label for="job-description" class="block text-sm font-medium text-gray-700">Descrição do Trabalho</label>
+                        <textarea id="job-description" rows="3" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Detalhes do serviço a ser realizado"></textarea>
+                    </div>
+                    <div>
+                        <label for="job-due-date" class="block text-sm font-medium text-gray-700">Data de Vencimento</label>
+                        <input type="date" id="job-due-date" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                    </div>
+                    <div>
+                        <label for="job-status" class="block text-sm font-medium text-gray-700">Status</label>
+                        <select id="job-status" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Concluído">Concluído</option>
+                            <option value="Cancelado">Cancelado</option>
+                            <option value="Pendente">Pendente</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-3 px-6 rounded-xl shadow-lg hover:bg-blue-600 transition-colors font-semibold">Adicionar</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Job Modal -->
+        <div id="editJobModal" class="modal fixed inset-0 flex items-center justify-center p-4 z-50 hidden">
+            <div class="modal-content bg-white p-6 rounded-xl shadow-xl w-full max-w-lg space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-gray-900">Editar Serviço Ativo</h2>
+                    <button id="closeEditJobModal" class="text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <form id="edit-job-form" class="space-y-4">
+                    <input type="hidden" id="edit-job-id">
+                    <div>
+                        <label for="edit-service-search-input" class="block text-sm font-medium text-gray-700">Serviço</label>
+                        <input type="text" id="edit-service-search-input" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Digite para buscar um serviço" required>
+                        <input type="hidden" id="edit-selected-service-id">
+                    </div>
+                    <div>
+                        <label for="edit-job-client" class="block text-sm font-medium text-gray-700">Cliente</label>
+                        <input type="text" id="edit-job-client" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Nome do Cliente" required>
+                    </div>
+                    <div>
+                        <label for="edit-job-description" class="block text-sm font-medium text-gray-700">Descrição do Trabalho</label>
+                        <textarea id="edit-job-description" rows="3" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" placeholder="Detalhes do serviço a ser realizado"></textarea>
+                    </div>
+                    <div>
+                        <label for="edit-job-due-date" class="block text-sm font-medium text-gray-700">Data de Vencimento</label>
+                        <input type="date" id="edit-job-due-date" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                    </div>
+                    <div>
+                        <label for="edit-job-status" class="block text-sm font-medium text-gray-700">Status</label>
+                        <select id="edit-job-status" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Concluído">Concluído</option>
+                            <option value="Cancelado">Cancelado</option>
+                            <option value="Pendente">Pendente</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-3 px-6 rounded-xl shadow-lg hover:bg-blue-600 transition-colors font-semibold">Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
     </main>
 
-    <!-- Modal to add event -->
-    <div id="add-event-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md space-y-4">
-            <h3 class="text-2xl font-bold text-gray-800">Adicionar Novo Evento</h3>
-            <div>
-                <label for="event-title" class="block text-sm font-medium text-gray-700">Título</label>
-                <input type="text" id="event-title" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-gray-400 focus:ring focus:ring-gray-400 focus:ring-opacity-50">
-            </div>
-            <div>
-                <label for="event-date" class="block text-sm font-medium text-gray-700">Data</label>
-                <input type="date" id="event-date" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-gray-400 focus:ring focus:ring-gray-400 focus:ring-opacity-50">
-            </div>
-            <div class="flex justify-end space-x-2">
-                <button id="cancel-event-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors">Cancelar</button>
-                <button id="save-event-btn" class="px-4 py-2 bg-[#d6cdc3] text-[#392d26] rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors">Salvar</button>
-            </div>
-        </div>
-    </div>
+    <script>
+        // Global variables for Firebase and Firestore
+        let app, db, auth;
+        let userId;
 
-    <!-- Modal to start service -->
-    <div id="add-job-modal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md space-y-4">
-            <h3 class="text-2xl font-bold text-gray-800">Iniciar Novo Serviço</h3>
-            
-            <div>
-                <label for="service-search-input" class="block text-sm font-medium text-gray-700">Serviço</label>
-                <!-- Autocomplete input for services -->
-                <div class="autocomplete-container">
-                    <input type="text" id="service-search-input" placeholder="Buscar serviço..." class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400">
-                    <div id="autocomplete-results" class="autocomplete-results hidden"></div>
-                </div>
-                <!-- Hidden input to store the selected service ID for validation -->
-                <input type="hidden" id="selected-service-id">
-            </div>
-            
-            <div class="flex justify-end space-x-2">
-                <button id="cancel-job-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors">Cancelar</button>
-                <button id="save-job-btn" class="px-4 py-2 bg-[#d6cdc3] text-[#392d26] rounded-xl font-semibold hover:bg-[#c4b5a6] transition-colors">Salvar</button>
-            </div>
-        </div>
-    </div>
+        // Function to show a message box
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
 
-    <script type="module">
-        // Import Firebase functionality from the global window object
-        const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } = window.firebase;
-
-        // Use these variables if they are available in the environment.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        // Firestore and Auth client references.
-        let db;
-        let auth;
-        let userId = null;
-        let servicesCollectionRef;
-        let jobsCollectionRef;
-        let financialTransactionsCollectionRef;
-
-        // References to HTML elements
-        const sidebar = document.getElementById('sidebar');
-        const appContainer = document.getElementById('app-container');
-        const calendarBtn = document.getElementById('calendar-btn');
-        const cadastroBtn = document.getElementById('cadastro-btn');
-        const servicesBtn = document.getElementById('services-btn');
-        const pricesBtn = document.getElementById('prices-btn');
-        const entradasSaidasBtn = document.getElementById('entradas-saidas-btn');
-
-        const calendarSection = document.getElementById('calendar-section');
-        const cadastroSection = document.getElementById('cadastro-section');
-        const servicesSection = document.getElementById('services-section');
-        const pricesSection = document.getElementById('prices-section');
-        const pricesCatalog = document.getElementById('prices-catalog');
-        const entradasSaidasSection = document.getElementById('entradas-saidas-section');
-
-        const loadingMessage = document.getElementById('loading-message');
-
-        const messageBox = document.getElementById('message-box');
-        const messageText = document.getElementById('message-text');
-
-        // References for Calendar
-        const calendarGrid = document.getElementById('calendar-grid');
-        const currentMonthYear = document.getElementById('current-month-year');
-        const prevMonthBtn = document.getElementById('prev-month-btn');
-        const nextMonthBtn = document.getElementById('next-month-btn');
-        const addEventBtn = document.getElementById('add-event-btn');
-        const addEventModal = document.getElementById('add-event-modal');
-        const cancelEventBtn = document.getElementById('cancel-event-btn');
-        const saveEventBtn = document.getElementById('save-event-btn');
-        const addJobModal = document.getElementById('add-job-modal');
-        const cancelJobBtn = document.getElementById('cancel-job-btn');
-        const saveJobBtn = document.getElementById('save-job-btn');
-        
-        // References for Services section
-        const openJobModalBtn = document.getElementById('open-job-modal-btn');
-
-        // References for the new services and cadastro sections
-        const serviceNameInput = document.getElementById('service-name-input');
-        const servicePriceInput = document.getElementById('service-price-input');
-        const serviceTypeInput = document.getElementById('service-type-input');
-        const addServiceBtn = document.getElementById('add-service-btn');
-        const servicesList = document.getElementById('services-list');
-        
-        // New references for autocomplete search
-        const serviceSearchInput = document.getElementById('service-search-input');
-        const autocompleteResults = document.getElementById('autocomplete-results');
-        const selectedServiceIdInput = document.getElementById('selected-service-id');
-
-        // References for the new Entradas e Saídas section
-        const transactionForm = document.getElementById('transaction-form');
-        const descriptionInput = document.getElementById('transaction-description');
-        const amountInput = document.getElementById('transaction-amount');
-        const typeInput = document.getElementById('transaction-type');
-        const transactionList = document.getElementById('transaction-list');
-        const balanceTotalEl = document.getElementById('finance-balance-total');
-        const incomeTotalEl = document.getElementById('finance-income-total');
-        const expenseTotalEl = document.getElementById('finance-expense-total');
-        
-        let services = []; // Array to store services
-        let selectedDate = new Date(); // Starts with the current date
-
-        // Status options for jobs
-        const jobStatusOptions = {
-            'agendado': 'Agendado',
-            'em_andamento': 'Em andamento (falta editar)',
-            'enviado_cliente': 'Enviado para o cliente',
-            'aprovado_cliente': 'Aprovado pelo cliente',
-            'concluido': 'Concluído/Entregue'
-        };
-
-        /**
-         * @param {string} message - A mensagem a ser exibida.
-         * @param {boolean} isError - true para erro, false para sucesso.
-         */
-        function showMessage(message, isError) {
             messageText.textContent = message;
-            if (isError) {
-                messageBox.className = 'fixed top-5 right-5 w-80 p-4 rounded-xl shadow-lg transition-transform transform bg-red-500 text-white animate-slide-in';
+            messageBox.classList.remove('hidden', 'bg-custom-green', 'bg-custom-red', 'bg-custom-blue');
+            messageBox.classList.add('transform', 'translate-x-0', 'ease-out', 'duration-300', 'flex', 'items-center', 'justify-center');
+
+            if (type === 'success') {
+                messageBox.classList.add('bg-custom-green', 'text-white');
+            } else if (type === 'error') {
+                messageBox.classList.add('bg-custom-red', 'text-white');
             } else {
-                messageBox.className = 'fixed top-5 right-5 w-80 p-4 rounded-xl shadow-lg transition-transform transform bg-green-500 text-white animate-slide-in';
+                messageBox.classList.add('bg-custom-blue', 'text-white');
             }
-            messageBox.classList.remove('hidden');
+
             setTimeout(() => {
-                messageBox.classList.add('hidden');
+                messageBox.classList.remove('transform', 'translate-x-0', 'ease-out', 'duration-300');
+                messageBox.classList.add('transform', 'translate-x-full', 'ease-in', 'duration-300');
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, 300);
             }, 3000);
         }
 
-        /**
-         * @param {string} sectionName - O nome da seção a ser exibida ('dashboard', 'calendar', etc.).
-         */
-        function renderActiveSection(sectionName) {
-            const sections = {
-                'calendar': { element: calendarSection, button: calendarBtn },
-                'cadastro': { element: cadastroSection, button: cadastroBtn },
-                'services': { element: servicesSection, button: servicesBtn },
-                'prices': { element: pricesSection, button: pricesBtn },
-                'entradas-saidas': { element: entradasSaidasSection, button: entradasSaidasBtn }
-            };
-
-            for (const name in sections) {
-                const section = sections[name];
-                if (name === sectionName) {
-                    section.element.classList.remove('hidden');
-                    section.button.classList.add('active');
-                } else {
-                    section.element.classList.add('hidden');
-                    section.button.classList.remove('active');
-                }
-            }
-        }
-        
-        /**
-         * Salva um novo serviço no Firestore com validação.
-         */
-        async function saveService() {
-            if (!servicesCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-            const serviceName = serviceNameInput.value.trim();
-            const servicePrice = parseFloat(servicePriceInput.value);
-            const serviceType = serviceTypeInput.value;
-            
-            if (!serviceName) {
-                showMessage('O nome do serviço não pode ser vazio.', true);
-                return;
-            }
-            if (isNaN(servicePrice) || servicePrice < 0) {
-                showMessage('Por favor, insira um preço válido.', true);
-                return;
-            }
-            if (!serviceType) {
-                showMessage('Por favor, selecione um tipo de serviço.', true);
-                return;
-            }
-
-            try {
-                await addDoc(servicesCollectionRef, { 
-                    service_name: serviceName,
-                    price: servicePrice,
-                    type: serviceType
-                });
-                showMessage('Serviço salvo com sucesso!', false);
-                serviceNameInput.value = '';
-                servicePriceInput.value = '';
-                serviceTypeInput.value = '';
-            } catch (error) {
-                console.error('Erro ao salvar serviço:', error);
-                showMessage('Erro ao salvar serviço: ' + error.message, true);
-            }
-        }
-        
-        /**
-         * Busca e renderiza serviços em tempo real.
-         */
-        function fetchServices() {
-            if (!servicesCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-            onSnapshot(servicesCollectionRef, (snapshot) => {
-                const servicesData = [];
-                snapshot.forEach(doc => {
-                    servicesData.push({ id: doc.id, ...doc.data() });
-                });
-                services = servicesData.sort((a, b) => a.service_name.localeCompare(b.service_name));
-                renderPrices(services);
-            }, (error) => {
-                console.error("Erro ao carregar serviços:", error);
-                showMessage("Erro ao carregar serviços: " + error.message, true);
+        // Function to show a section and hide others
+        function showSection(sectionId) {
+            document.querySelectorAll('section').forEach(section => {
+                section.classList.add('hidden');
             });
-        }
-        
-        /**
-         * Renderiza o catálogo de preços na seção "Preços" com colapsabilidade.
-         * @param {Array<Object>} services - Array de objetos de serviço.
-         */
-        function renderPrices(services) {
-            pricesCatalog.innerHTML = '';
-            
-            const groupedServices = services.reduce((acc, service) => {
-                const type = service.type || 'Sem Categoria';
-                if (!acc[type]) {
-                    acc[type] = [];
-                }
-                acc[type].push(service);
-                return acc;
-            }, {});
+            document.getElementById(sectionId).classList.remove('hidden');
 
-            const planOrder = ['Básico', 'Intermediário', 'Premium'];
-
-            planOrder.forEach(plan => {
-                const planServices = groupedServices[plan] || [];
-                
-                const planContainer = document.createElement('div');
-                planContainer.className = 'bg-white p-4 rounded-xl shadow-lg';
-
-                const planHeader = document.createElement('button');
-                planHeader.className = 'w-full flex justify-between items-center text-left font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 p-4 rounded-xl';
-                planHeader.innerHTML = `
-                    <span class="text-xl">${planServices.length > 0 ? `Plano ${plan}` : `${plan} (vazio)`}</span>
-                    <svg class="arrow-icon w-6 h-6 text-slate-500 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                    </svg>
-                `;
-                planContainer.appendChild(planHeader);
-                
-                const servicesListDiv = document.createElement('div');
-                servicesListDiv.className = 'collapsible-content';
-                
-                const servicesListUl = document.createElement('ul');
-                servicesListUl.className = 'list-none space-y-4 text-slate-600 mt-4';
-
-                if (planServices.length > 0) {
-                    planServices.forEach(service => {
-                        const serviceItem = document.createElement('li');
-                        serviceItem.className = 'flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0';
-                        serviceItem.innerHTML = `
-                            <span class="text-gray-700">${service.service_name}</span>
-                            <span class="text-gray-900 font-semibold">R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        `;
-                        servicesListUl.appendChild(serviceItem);
-                    });
-                } else {
-                    const noServicesMessage = document.createElement('p');
-                    noServicesMessage.className = 'text-center text-gray-500';
-                    noServicesMessage.textContent = 'Nenhum serviço disponível neste plano.';
-                    servicesListUl.appendChild(noServicesMessage);
-                }
-
-                servicesListDiv.appendChild(servicesListUl);
-                planContainer.appendChild(servicesListDiv);
-                
-                pricesCatalog.appendChild(planContainer);
-
-                // Event listener for collapsing/expanding
-                planHeader.addEventListener('click', () => {
-                    servicesListDiv.classList.toggle('expanded');
-                    const arrowIcon = planHeader.querySelector('.arrow-icon');
-                    arrowIcon.classList.toggle('rotate-90');
-                });
+            document.querySelectorAll('.sidebar-btn').forEach(btn => {
+                btn.classList.remove('active');
             });
-        }
-
-        /**
-         * Renderiza o calendário.
-         */
-        function renderCalendar() {
-            calendarGrid.innerHTML = '';
-            const month = selectedDate.getMonth();
-            const year = selectedDate.getFullYear();
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
-            const daysInMonth = lastDay.getDate();
-
-            currentMonthYear.textContent = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(selectedDate);
-            
-            const startDayOfWeek = firstDay.getDay();
-
-            for (let i = 0; i < startDayOfWeek; i++) {
-                const emptyCell = document.createElement('div');
-                emptyCell.className = 'p-3';
-                calendarGrid.appendChild(emptyCell);
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dayCell = document.createElement('div');
-                dayCell.className = 'p-3 rounded-xl cursor-pointer hover:bg-slate-200 transition-colors relative';
-                dayCell.textContent = day;
-                dayCell.dataset.date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                
-                const eventDay = new Date(year, month, day);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-
-                if (eventDay.toDateString() === today.toDateString()) {
-                    dayCell.classList.add('bg-[#d6cdc3]', 'text-[#392d26]');
-                }
-
-                dayCell.addEventListener('click', () => {
-                    showMessage(`Clicou em ${dayCell.dataset.date}`, false);
-                });
-
-                calendarGrid.appendChild(dayCell);
+            const activeBtn = document.querySelector(`[id='${sectionId.replace('-section', '-btn')}']`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
             }
         }
-        
-        /**
-         * Adiciona um novo trabalho de serviço com status inicial 'agendado'.
-         */
-        async function addServiceJob() {
-            if (!jobsCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-            
-            const serviceId = selectedServiceIdInput.value;
-            const serviceName = serviceSearchInput.value.trim();
 
-            if (!serviceId || !serviceName) {
-                showMessage('Por favor, selecione um serviço válido para iniciar.', true);
-                return;
-            }
-            
+        // Initialize Firebase and set up auth listener
+        window.onload = async () => {
+            document.getElementById('loading-message').classList.remove('hidden');
+
             try {
-                // Get the service data to save its price
-                const serviceDoc = await getDoc(doc(db, servicesCollectionRef.path, serviceId));
-                if (!serviceDoc.exists()) {
-                    showMessage('Serviço não encontrado.', true);
-                    return;
-                }
-                const serviceData = serviceDoc.data();
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                app = firebase.initializeApp(firebaseConfig);
+                db = firebase.getFirestore(app);
+                auth = firebase.getAuth(app);
 
-                await addDoc(jobsCollectionRef, {
-                    serviceId,
-                    serviceName: serviceData.service_name,
-                    price: serviceData.price,
-                    status: 'agendado', // Define o status inicial como 'agendado'
-                    createdAt: new Date().toISOString()
-                });
-                showMessage(`Iniciando trabalho: ${serviceData.service_name}`, false);
-                addJobModal.classList.add('hidden');
-                serviceSearchInput.value = '';
-                selectedServiceIdInput.value = '';
-                autocompleteResults.classList.add('hidden');
-            } catch (error) {
-                console.error("Erro ao salvar o trabalho:", error);
-                showMessage("Erro ao salvar o trabalho: " + error.message, true);
-            }
-        }
+                const loginScreen = document.getElementById('login-screen');
+                const appContainer = document.getElementById('app-container');
+                const sidebar = document.getElementById('sidebar');
 
-        /**
-         * Adiciona uma nova transação financeira ao Firestore.
-         */
-        async function addFinancialTransaction() {
-            if (!financialTransactionsCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-
-            const description = descriptionInput.value.trim();
-            const amount = parseFloat(amountInput.value);
-            const type = typeInput.value;
-
-            if (description === '' || isNaN(amount) || amount <= 0) {
-                showMessage('Por favor, preencha todos os campos com valores válidos.', true);
-                return;
-            }
-            
-            try {
-                await addDoc(financialTransactionsCollectionRef, {
-                    description,
-                    amount,
-                    type,
-                    date: new Date().toISOString()
-                });
-                showMessage(`Lançamento de ${type === 'income' ? 'Entrada' : 'Saída'} adicionado.`, false);
-                descriptionInput.value = '';
-                amountInput.value = '';
-            } catch (error) {
-                console.error('Erro ao adicionar transação:', error);
-                showMessage('Erro ao adicionar transação: ' + error.message, true);
-            }
-        }
-
-        /**
-         * Deleta uma transação financeira do Firestore.
-         * @param {string} transactionId - O ID do documento da transação.
-         */
-        async function deleteFinancialTransaction(transactionId) {
-            if (!financialTransactionsCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-            try {
-                await deleteDoc(doc(db, financialTransactionsCollectionRef.path, transactionId));
-                showMessage('Lançamento deletado com sucesso!', false);
-            } catch (error) {
-                console.error('Erro ao deletar transação:', error);
-                showMessage('Erro ao deletar transação: ' + error.message, true);
-            }
-        }
-
-        /**
-         * Configura o ouvinte de dados para transações financeiras.
-         */
-        function setupFinancialListener() {
-            if (!financialTransactionsCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-            onSnapshot(financialTransactionsCollectionRef, (snapshot) => {
-                const transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                const incomeTotal = transactions
-                    .filter(t => t.type === 'income')
-                    .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-                const expenseTotal = transactions
-                    .filter(t => t.type === 'expense')
-                    .reduce((sum, t) => sum + (t.amount || 0), 0);
-                
-                const balanceTotal = incomeTotal - expenseTotal;
-
-                balanceTotalEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(balanceTotal);
-                incomeTotalEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(incomeTotal);
-                expenseTotalEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(expenseTotal);
-
-                // Renderiza a lista de transações
-                transactionList.innerHTML = '';
-                if (transactions.length === 0) {
-                    transactionList.innerHTML = '<p class="text-gray-500">Nenhum lançamento registrado.</p>';
+                // Check for existing token or sign in anonymously
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await firebase.signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    transactions.forEach(transaction => {
-                        const itemClass = transaction.type === 'income' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                        const listItem = document.createElement('li');
-                        listItem.classList.add('flex', 'justify-between', 'items-center', 'p-4', 'rounded-lg', 'shadow-sm', itemClass);
-                        const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(transaction.amount);
-
-                        listItem.innerHTML = `
-                            <div class="flex-1 min-w-0">
-                                <span class="font-medium truncate">${transaction.description}</span>
-                            </div>
-                            <span class="font-bold text-lg mx-4">${formattedAmount}</span>
-                            <button class="delete-transaction-btn text-gray-500 hover:text-red-500 font-bold ml-2" data-id="${transaction.id}">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        `;
-                        transactionList.appendChild(listItem);
-                    });
+                    await firebase.signInAnonymously(auth);
                 }
-            }, (error) => {
-                console.error("Erro ao carregar transações:", error);
-                showMessage("Erro ao carregar transações: " + error.message, true);
-            });
-        }
 
-        /**
-         * Configura o ouvinte de dados para trabalhos (jobs) em tempo real.
-         */
-        function setupJobsListener() {
-            if (!jobsCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
-                return;
-            }
-            onSnapshot(jobsCollectionRef, (snapshot) => {
-                const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderJobs(jobs);
-            }, (error) => {
-                console.error("Erro ao carregar trabalhos:", error);
-                showMessage("Erro ao carregar trabalhos: " + error.message, true);
-            });
-        }
-
-        /**
-         * Renderiza a lista de trabalhos na seção "Serviços".
-         * @param {Array<Object>} jobs - Array de objetos de trabalho.
-         */
-        function renderJobs(jobs) {
-            servicesList.innerHTML = '';
-            if (jobs.length === 0) {
-                servicesList.innerHTML = '<p class="text-gray-500">Nenhum trabalho em andamento. Clique em "Iniciar Novo Serviço" para começar!</p>';
-            } else {
-                jobs.forEach(job => {
-                    const jobDiv = document.createElement('div');
-                    jobDiv.className = 'bg-gray-100 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between space-y-2 md:space-y-0';
-                    const formattedPrice = job.price ? `R$ ${job.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Preço não definido';
-                    
-                    jobDiv.innerHTML = `
-                        <div class="flex flex-col flex-grow">
-                            <span class="text-lg font-semibold text-gray-800">${job.serviceName}</span>
-                            <span class="text-sm text-gray-500">${formattedPrice}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                             <select class="job-status-select p-2 rounded-xl border border-gray-300 shadow-sm transition-colors" data-job-id="${job.id}">
-                             </select>
-                            <button class="delete-job-btn text-red-500 hover:text-red-700 transition-colors" data-job-id="${job.id}">
-                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.924a2.25 2.25 0 0 1-2.244-2.077L4.77 5.75c-.052-.16-.084-.332-.094-.492a.75.75 0 0 1 .159-.625.75.75 0 0 1 .49-.168h9.914a.75.75 0 0 1 .49.168.75.75 0 0 1 .159.625c-.01.167-.042.332-.094.492ZM16.5 6V4.5a2.25 2.25 0 0 0-2.25-2.25h-4.5A2.25 2.25 0 0 0 7.5 4.5V6" />
-                               </svg>
-                            </button>
-                        </div>
-                    `;
-                    servicesList.appendChild(jobDiv);
-                    
-                    const selectEl = jobDiv.querySelector('.job-status-select');
-                    for (const [key, value] of Object.entries(jobStatusOptions)) {
-                        const option = document.createElement('option');
-                        option.value = key;
-                        option.textContent = value;
-                        if (job.status === key) {
-                            option.selected = true;
-                        }
-                        selectEl.appendChild(option);
-                    }
-                });
-            }
-        }
-
-        /**
-         * Atualiza o status de um trabalho no Firestore.
-         * @param {string} jobId - ID do trabalho.
-         * @param {string} newStatus - Novo status do trabalho.
-         */
-        async function updateJobStatus(jobId, newStatus) {
-            try {
-                await updateDoc(doc(db, jobsCollectionRef.path, jobId), {
-                    status: newStatus
-                });
-                showMessage('Status do trabalho atualizado com sucesso!', false);
-            } catch (error) {
-                console.error("Erro ao atualizar o status:", error);
-                showMessage("Erro ao atualizar o status: " + error.message, true);
-            }
-        }
-
-
-        /**
-         * Inicializa o aplicativo principal após o login.
-         */
-        function startApp() {
-            appContainer.classList.remove('hidden');
-            sidebar.classList.remove('hidden');
-            
-            loadingMessage.classList.add('hidden');
-            renderActiveSection('entradas-saidas');
-            
-            fetchServices();
-            setupFinancialListener();
-            setupJobsListener(); // New: setup listener for jobs
-        }
-
-        // Initialize Firebase and set up the authentication state listener
-        window.onload = function() {
-            if (!firebaseConfig.projectId) {
-                console.error("Firebase configuration is missing. Ensure that __firebase_config is available.");
-                document.body.innerHTML = `<p class="text-xl font-medium text-red-600 m-8">Erro: Configuração do Firebase em falta.</p>`;
-                return;
-            }
-            
-            loadingMessage.classList.remove('hidden');
-
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    servicesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/services`);
-                    jobsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/jobs`);
-                    financialTransactionsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/financial-transactions`);
-                    
-                    startApp();
-                } else {
-                    if (initialAuthToken) {
-                        try {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } catch (error) {
-                            console.error("Error in custom token login:", error);
-                            showMessage("Erro no login. Tentando fazer login anonimamente.", true);
-                            signInAnonymously(auth);
-                        }
+                firebase.onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        // User is signed in, show the main app
+                        loginScreen.classList.add('hidden');
+                        document.getElementById('signup-screen').classList.add('hidden');
+                        appContainer.classList.remove('hidden');
+                        sidebar.classList.remove('hidden');
+                        document.getElementById('loading-message').classList.add('hidden');
+                        showSection('entradas-saidas-section');
+                        loadTransactions();
+                        loadPrices();
+                        loadServices();
+                        loadJobs();
                     } else {
-                        try {
-                            await signInAnonymously(auth);
-                        } catch (error) {
-                            console.error("Error in anonymous login:", error);
-                            document.body.innerHTML = `<p class="text-xl font-medium text-red-600 m-8">Erro no login anônimo. Por favor, tente novamente.</p>`;
-                        }
+                        userId = null;
+                        // No user is signed in, show the login screen
+                        loginScreen.classList.remove('hidden');
+                        document.getElementById('signup-screen').classList.add('hidden');
+                        appContainer.classList.add('hidden');
+                        sidebar.classList.add('hidden');
+                        document.getElementById('loading-message').classList.add('hidden');
                     }
-                }
-            });
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar o Firebase:", error);
+                document.getElementById('loading-message').innerHTML = '<p class="text-red-500 font-semibold">Erro ao conectar ao servidor. Por favor, tente novamente.</p>';
+            }
         };
 
-        // Event listeners
-        calendarBtn.addEventListener('click', () => {
-            selectedDate = new Date();
-            renderCalendar();
-            renderActiveSection('calendar');
+        // --- Auth Functions ---
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+        const signupLink = document.getElementById('signup-link');
+        const loginLink = document.getElementById('login-link');
+        const loginScreen = document.getElementById('login-screen');
+        const signupScreen = document.getElementById('signup-screen');
+        const loginErrorMessage = document.getElementById('login-error-message');
+        const signupErrorMessage = document.getElementById('signup-error-message');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        signupLink.addEventListener('click', () => {
+            loginScreen.classList.add('hidden');
+            signupScreen.classList.remove('hidden');
+            loginErrorMessage.classList.add('hidden');
         });
 
-        cadastroBtn.addEventListener('click', () => {
-            renderActiveSection('cadastro');
+        loginLink.addEventListener('click', () => {
+            signupScreen.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            signupErrorMessage.classList.add('hidden');
         });
 
-        servicesBtn.addEventListener('click', () => {
-            if (jobsCollectionRef) {
-                renderActiveSection('services');
-            } else {
-                showMessage('O serviço de base de dados não está pronto.', true);
-            }
-        });
-
-        pricesBtn.addEventListener('click', () => {
-            // A correção foi feita aqui: o botão 'Preços' agora leva à seção 'Preços' novamente
-            renderActiveSection('prices');
-        });
-
-        entradasSaidasBtn.addEventListener('click', () => {
-            renderActiveSection('entradas-saidas');
-        });
-
-        prevMonthBtn.addEventListener('click', () => {
-            selectedDate.setMonth(selectedDate.getMonth() - 1);
-            renderCalendar();
-        });
-
-        nextMonthBtn.addEventListener('click', () => {
-            selectedDate.setMonth(selectedDate.getMonth() + 1);
-            renderCalendar();
-        });
-
-        addEventBtn.addEventListener('click', () => {
-            addEventModal.classList.remove('hidden');
-        });
-
-        cancelEventBtn.addEventListener('click', () => {
-            addEventModal.classList.add('hidden');
-        });
-
-        saveEventBtn.addEventListener('click', () => {
-            const title = document.getElementById('event-title').value;
-            const date = document.getElementById('event-date').value;
-            if (title && date) {
-                showMessage('Evento salvo com sucesso! (Lógica simplificada)', false);
-                addEventModal.classList.add('hidden');
-            } else {
-                showMessage('Título e data são obrigatórios.', true);
-            }
-        });
-        
-        // Listener para o novo seletor de status de serviço
-        servicesList.addEventListener('change', (event) => {
-            const selectEl = event.target.closest('.job-status-select');
-            if (selectEl) {
-                const jobId = selectEl.dataset.jobId;
-                const newStatus = selectEl.value;
-                if (jobId && newStatus) {
-                    updateJobStatus(jobId, newStatus);
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            loginErrorMessage.classList.add('hidden');
+            try {
+                await firebase.signInWithEmailAndPassword(auth, email, password);
+                showMessage("Login realizado com sucesso!", 'success');
+            } catch (error) {
+                console.error("Erro no login:", error);
+                let message = "Erro no login. Verifique seu e-mail e senha.";
+                if (error.code === 'auth/invalid-email') {
+                    message = "O formato do e-mail é inválido.";
+                } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                    message = "E-mail ou senha incorretos.";
                 }
+                loginErrorMessage.textContent = message;
+                loginErrorMessage.classList.remove('hidden');
             }
         });
 
-        servicesList.addEventListener('click', (event) => {
-            if (event.target.closest('.delete-job-btn')) {
-                const btn = event.target.closest('.delete-job-btn');
-                const jobId = btn.dataset.jobId;
-                if (jobId) {
-                     deleteJob(jobId);
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            signupErrorMessage.classList.add('hidden');
+            try {
+                await firebase.createUserWithEmailAndPassword(auth, email, password);
+                showMessage("Conta criada com sucesso! Você já está logado.", 'success');
+            } catch (error) {
+                console.error("Erro no cadastro:", error);
+                let message = "Erro ao criar conta. Tente novamente.";
+                if (error.code === 'auth/email-already-in-use') {
+                    message = "Este e-mail já está em uso.";
+                } else if (error.code === 'auth/weak-password') {
+                    message = "A senha é muito fraca. Deve ter pelo menos 6 caracteres.";
                 }
+                signupErrorMessage.textContent = message;
+                signupErrorMessage.classList.remove('hidden');
             }
         });
 
-        async function deleteJob(jobId) {
-            if (!jobsCollectionRef) {
-                showMessage('O serviço de base de dados não está pronto.', true);
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await auth.signOut();
+                showMessage("Você foi desconectado.", 'info');
+            } catch (error) {
+                console.error("Erro ao sair:", error);
+                showMessage("Erro ao sair.", 'error');
+            }
+        });
+
+        // Event Listeners for Sidebar Buttons
+        document.getElementById('entradas-saidas-btn').addEventListener('click', () => showSection('entradas-saidas-section'));
+        document.getElementById('calendar-btn').addEventListener('click', () => {
+            showSection('calendar-section');
+            renderCalendar();
+            loadEvents();
+        });
+        document.getElementById('cadastro-btn').addEventListener('click', () => showSection('cadastro-section'));
+        document.getElementById('services-btn').addEventListener('click', () => showSection('services-section'));
+        document.getElementById('prices-btn').addEventListener('click', () => showSection('prices-section'));
+
+
+        // --- Firestore Functions (Services) ---
+        let allServices = []; // Cache to hold all services
+
+        const addServiceForm = document.getElementById('add-service-btn');
+        const servicesTableBody = document.getElementById('services-table-body');
+        const pricesTableBody = document.getElementById('prices-table-body');
+        const serviceSearchInput = document.getElementById('service-search-input');
+        const autocompleteResults = document.getElementById('autocomplete-results');
+
+        // Function to save a new service
+        async function saveService(event) {
+            event.preventDefault();
+            const serviceName = document.getElementById('service-name-input').value;
+            const servicePrice = parseFloat(document.getElementById('service-price-input').value);
+            const serviceType = document.getElementById('service-type-input').value;
+
+            if (!serviceName || isNaN(servicePrice) || !serviceType) {
+                showMessage("Por favor, preencha todos os campos.", "error");
+                return;
+            }
+
+            try {
+                await firebase.addDoc(firebase.collection(db, `artifacts/${__app_id}/users/${userId}/services`), {
+                    service_name: serviceName,
+                    price: servicePrice,
+                    type: serviceType,
+                    created_at: new Date()
+                });
+                showMessage("Serviço adicionado com sucesso!", "success");
+                document.getElementById('service-name-input').value = '';
+                document.getElementById('service-price-input').value = '';
+                document.getElementById('service-type-input').value = '';
+            } catch (error) {
+                console.error("Erro ao adicionar serviço: ", error);
+                showMessage("Erro ao adicionar serviço.", "error");
+            }
+        }
+
+        // Function to load and display services (live update)
+        async function loadServices() {
+            if (!userId) {
+                console.log("Usuário não autenticado. Não é possível carregar serviços.");
                 return;
             }
             try {
-                await deleteDoc(doc(db, jobsCollectionRef.path, jobId));
-                showMessage('Trabalho deletado com sucesso!', false);
+                const q = firebase.collection(db, `artifacts/${__app_id}/users/${userId}/services`);
+                firebase.onSnapshot(q, (snapshot) => {
+                    servicesTableBody.innerHTML = '';
+                    pricesTableBody.innerHTML = '';
+                    allServices = [];
+                    snapshot.forEach((doc) => {
+                        const service = doc.data();
+                        allServices.push({ id: doc.id, ...service });
+
+                        // Render in Cadastro section
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${service.service_name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${service.type}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button class="text-indigo-600 hover:text-indigo-900 mr-2 edit-service-btn" data-id="${doc.id}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 inline-block">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" />
+                                    </svg>
+                                </button>
+                                <button class="text-red-600 hover:text-red-900 delete-service-btn" data-id="${doc.id}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 inline-block">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.262 9m9.981-3.646a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001L19.5 5.25m-1.5 0a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001ZM12 6.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM10.5 1.5a.75.75 0 0 0-1.5 0v3a.75.75 0 0 0 1.5 0v-3ZM13.5 1.5a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 15-.346 9m-4.788 0L9.262 15m9.981-3.646a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001L19.5 11.25m-1.5 0a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001ZM12 12.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+                                    </svg>
+                                </button>
+                            </td>
+                        `;
+                        servicesTableBody.appendChild(row);
+
+                        // Render in Prices section
+                        const priceRow = document.createElement('tr');
+                        priceRow.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${service.service_name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${service.type}</td>
+                        `;
+                        pricesTableBody.appendChild(priceRow);
+                    });
+                });
             } catch (error) {
-                console.error('Erro ao deletar trabalho:', error);
-                showMessage('Erro ao deletar trabalho: ' + error.message, true);
+                console.error("Erro ao carregar serviços: ", error);
             }
         }
-        
-        openJobModalBtn.addEventListener('click', () => {
-            if (servicesCollectionRef) {
-                addJobModal.classList.remove('hidden');
-            } else {
-                showMessage('O serviço de base de dados não está pronto.', true);
-            }
+
+        // Add event listener for the Add Service button
+        document.getElementById('add-service-btn').addEventListener('click', saveService);
+
+        // --- Firestore Functions (Jobs) ---
+        let allJobs = []; // Cache for job data
+        let currentFilter = 'all';
+
+        const addJobBtn = document.getElementById('add-job-btn');
+        const addJobModal = document.getElementById('addJobModal');
+        const closeAddJobModalBtn = document.getElementById('closeAddJobModal');
+        const addJobForm = document.getElementById('add-job-form');
+        const editJobModal = document.getElementById('editJobModal');
+        const closeEditJobModalBtn = document.getElementById('closeEditJobModal');
+        const editJobForm = document.getElementById('edit-job-form');
+        const jobsList = document.getElementById('jobs-list');
+        const jobSearchInput = document.getElementById('job-search');
+
+        // Show/Hide Modals
+        addJobBtn.addEventListener('click', () => {
+            addJobModal.classList.remove('hidden');
         });
-        
-        cancelJobBtn.addEventListener('click', () => {
+
+        closeAddJobModalBtn.addEventListener('click', () => {
             addJobModal.classList.add('hidden');
-            serviceSearchInput.value = '';
-            selectedServiceIdInput.value = '';
-            autocompleteResults.classList.add('hidden');
         });
 
-        saveJobBtn.addEventListener('click', addServiceJob);
-        
-        addServiceBtn.addEventListener('click', saveService);
-
-        transactionForm.addEventListener('submit', (event) => {
-            event.preventDefault();
-            addFinancialTransaction();
+        closeEditJobModalBtn.addEventListener('click', () => {
+            editJobModal.classList.add('hidden');
         });
 
-        transactionList.addEventListener('click', (event) => {
-            const deleteBtn = event.target.closest('.delete-transaction-btn');
-            if (deleteBtn) {
-                const transactionId = deleteBtn.dataset.id;
-                deleteFinancialTransaction(transactionId);
-            }
-        });
+        // Autocomplete for services in Add Job modal
+        serviceSearchInput.addEventListener('input', () => {
+            const query = serviceSearchInput.value.toLowerCase();
+            const filteredServices = allServices.filter(service => service.service_name.toLowerCase().includes(query));
 
-        // Autocomplete logic for service search
-        serviceSearchInput.addEventListener('keyup', (event) => {
-            const searchTerm = event.target.value.toLowerCase().trim();
             autocompleteResults.innerHTML = '';
-            
-            if (searchTerm === '') {
-                autocompleteResults.classList.add('hidden');
-                return;
-            }
-
-            const filteredServices = services.filter(service => 
-                service.service_name.toLowerCase().includes(searchTerm)
-            );
-            
-            if (filteredServices.length > 0) {
+            if (query.length > 0 && filteredServices.length > 0) {
                 autocompleteResults.classList.remove('hidden');
                 filteredServices.forEach(service => {
                     const resultItem = document.createElement('div');
-                    resultItem.classList.add('autocomplete-result');
-                    resultItem.textContent = `${service.service_name} - R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    resultItem.classList.add('autocomplete-result', 'p-2', 'cursor-pointer', 'hover:bg-gray-200', 'rounded-lg');
+                    resultItem.textContent = `${service.service_name} - R$ ${service.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
                     resultItem.dataset.serviceId = service.id;
                     resultItem.dataset.serviceName = service.service_name;
                     autocompleteResults.appendChild(resultItem);
@@ -1137,17 +859,543 @@
                 const serviceName = selectedItem.dataset.serviceName;
                 
                 serviceSearchInput.value = serviceName;
-                selectedServiceIdInput.value = serviceId;
+                document.getElementById('selected-service-id').value = serviceId;
                 autocompleteResults.classList.add('hidden');
             }
         });
 
-        // Hide autocomplete results when clicking outside the modal
-        document.addEventListener('click', (event) => {
-            if (!addJobModal.contains(event.target)) {
-                autocompleteResults.classList.add('hidden');
+        // Add a new job
+        addJobForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const serviceId = document.getElementById('selected-service-id').value;
+            const client = document.getElementById('job-client').value;
+            const description = document.getElementById('job-description').value;
+            const dueDate = document.getElementById('job-due-date').value;
+            const status = document.getElementById('job-status').value;
+
+            if (!serviceId || !client || !dueDate) {
+                showMessage("Por favor, preencha todos os campos obrigatórios.", "error");
+                return;
+            }
+
+            try {
+                // Find service price from cache
+                const service = allServices.find(s => s.id === serviceId);
+                const serviceName = service ? service.service_name : 'Serviço não encontrado';
+                const servicePrice = service ? service.price : 0;
+                
+                await firebase.addDoc(firebase.collection(db, `artifacts/${__app_id}/users/${userId}/jobs`), {
+                    service_id: serviceId,
+                    service_name: serviceName,
+                    price: servicePrice,
+                    client: client,
+                    description: description,
+                    due_date: new Date(dueDate),
+                    status: status,
+                    created_at: new Date()
+                });
+                showMessage("Serviço ativo adicionado com sucesso!", "success");
+                addJobModal.classList.add('hidden');
+                addJobForm.reset();
+            } catch (error) {
+                console.error("Erro ao adicionar serviço ativo: ", error);
+                showMessage("Erro ao adicionar serviço ativo.", "error");
             }
         });
+
+        // Load jobs with live updates
+        async function loadJobs() {
+            if (!userId) {
+                console.log("Usuário não autenticado. Não é possível carregar serviços ativos.");
+                return;
+            }
+            try {
+                const jobsCollection = firebase.collection(db, `artifacts/${__app_id}/users/${userId}/jobs`);
+                firebase.onSnapshot(jobsCollection, (snapshot) => {
+                    allJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderJobs();
+                });
+            } catch (error) {
+                console.error("Erro ao carregar serviços ativos: ", error);
+            }
+        }
+
+        // Render jobs based on current filter and search
+        function renderJobs() {
+            jobsList.innerHTML = '';
+            const query = jobSearchInput.value.toLowerCase();
+            let filteredJobs = allJobs;
+
+            if (currentFilter !== 'all') {
+                filteredJobs = filteredJobs.filter(job => job.status === currentFilter);
+            }
+
+            if (query) {
+                filteredJobs = filteredJobs.filter(job =>
+                    job.service_name.toLowerCase().includes(query) ||
+                    job.client.toLowerCase().includes(query) ||
+                    job.description.toLowerCase().includes(query)
+                );
+            }
+
+            if (filteredJobs.length === 0) {
+                jobsList.innerHTML = '<p class="text-center text-gray-500 mt-8">Nenhum serviço ativo encontrado.</p>';
+                return;
+            }
+
+            filteredJobs.forEach(job => {
+                const card = document.createElement('div');
+                card.classList.add('bg-white', 'p-6', 'rounded-xl', 'shadow-lg', 'space-y-4');
+                
+                const statusColor = {
+                    'Em Andamento': 'bg-blue-500',
+                    'Concluído': 'bg-green-500',
+                    'Cancelado': 'bg-red-500',
+                    'Pendente': 'bg-orange-400'
+                };
+                
+                const dueDate = job.due_date ? new Date(job.due_date.seconds * 1000).toLocaleDateString('pt-BR') : 'N/A';
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-semibold text-gray-900">${job.service_name}</h3>
+                        <span class="px-3 py-1 text-sm font-medium text-white rounded-full ${statusColor[job.status]}">${job.status}</span>
+                    </div>
+                    <div class="space-y-2 text-gray-700">
+                        <p><strong>Cliente:</strong> ${job.client}</p>
+                        <p><strong>Preço:</strong> R$ ${job.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p><strong>Vencimento:</strong> ${dueDate}</p>
+                        <p><strong>Descrição:</strong> ${job.description || 'N/A'}</p>
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button class="text-blue-500 hover:text-blue-700 edit-job-btn" data-id="${job.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.243-8.243Z" />
+                            </svg>
+                        </button>
+                        <button class="text-red-500 hover:text-red-700 delete-job-btn" data-id="${job.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.262 9m9.981-3.646a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001L19.5 5.25m-1.5 0a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001ZM12 6.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM10.5 1.5a.75.75 0 0 0-1.5 0v3a.75.75 0 0 0 1.5 0v-3ZM13.5 1.5a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 15-.346 9m-4.788 0L9.262 15m9.981-3.646a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001L19.5 11.25m-1.5 0a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001ZM12 12.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                jobsList.appendChild(card);
+            });
+
+            addJobListeners();
+        }
+
+        function addJobListeners() {
+            document.querySelectorAll('.edit-job-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const jobId = e.currentTarget.dataset.id;
+                    const job = allJobs.find(j => j.id === jobId);
+                    if (job) {
+                        document.getElementById('edit-job-id').value = job.id;
+                        document.getElementById('edit-service-search-input').value = job.service_name;
+                        document.getElementById('edit-job-client').value = job.client;
+                        document.getElementById('edit-job-description').value = job.description;
+                        const dueDate = job.due_date ? new Date(job.due_date.seconds * 1000).toISOString().split('T')[0] : '';
+                        document.getElementById('edit-job-due-date').value = dueDate;
+                        document.getElementById('edit-job-status').value = job.status;
+                        editJobModal.classList.remove('hidden');
+                    }
+                });
+            });
+
+            document.querySelectorAll('.delete-job-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const jobId = e.currentTarget.dataset.id;
+                    // Use a custom modal instead of alert/confirm
+                    if (window.confirm("Tem certeza que deseja deletar este serviço ativo?")) {
+                        try {
+                            const jobDocRef = firebase.doc(db, `artifacts/${__app_id}/users/${userId}/jobs`, jobId);
+                            await firebase.deleteDoc(jobDocRef);
+                            showMessage("Serviço ativo deletado com sucesso!", "success");
+                        } catch (error) {
+                            console.error("Erro ao deletar serviço ativo: ", error);
+                            showMessage("Erro ao deletar serviço ativo.", "error");
+                        }
+                    }
+                });
+            });
+        }
+
+        // Edit a job
+        editJobForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const jobId = document.getElementById('edit-job-id').value;
+            const client = document.getElementById('edit-job-client').value;
+            const description = document.getElementById('edit-job-description').value;
+            const dueDate = document.getElementById('edit-job-due-date').value;
+            const status = document.getElementById('edit-job-status').value;
+
+            try {
+                const jobDocRef = firebase.doc(db, `artifacts/${__app_id}/users/${userId}/jobs`, jobId);
+                await firebase.updateDoc(jobDocRef, {
+                    client,
+                    description,
+                    due_date: new Date(dueDate),
+                    status
+                });
+                showMessage("Serviço ativo atualizado com sucesso!", "success");
+                editJobModal.classList.add('hidden');
+            } catch (error) {
+                console.error("Erro ao atualizar serviço ativo: ", error);
+                showMessage("Erro ao atualizar serviço ativo.", "error");
+            }
+        });
+
+        // Filter buttons for jobs
+        document.querySelectorAll('.status-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                document.querySelectorAll('.status-button').forEach(btn => btn.classList.remove('active', 'bg-blue-500', 'bg-green-500', 'bg-red-500', 'bg-orange-400', 'text-white', 'bg-gray-300', 'text-gray-800'));
+                
+                const status = e.target.dataset.status;
+                currentFilter = status;
+                
+                if (status === 'all') {
+                    e.target.classList.add('active', 'bg-gray-300', 'text-gray-800');
+                } else if (status === 'Em Andamento') {
+                    e.target.classList.add('active', 'bg-blue-500', 'text-white');
+                } else if (status === 'Concluído') {
+                    e.target.classList.add('active', 'bg-green-500', 'text-white');
+                } else if (status === 'Cancelado') {
+                    e.target.classList.add('active', 'bg-red-500', 'text-white');
+                } else if (status === 'Pendente') {
+                    e.target.classList.add('active', 'bg-orange-400', 'text-white');
+                }
+                
+                renderJobs();
+            });
+        });
+
+        // Search functionality
+        jobSearchInput.addEventListener('input', () => {
+            renderJobs();
+        });
+
+
+        // --- Firestore Functions (Finance) ---
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        const transactionForm = document.getElementById('transaction-form');
+        const transactionList = document.getElementById('transaction-list');
+        const financeBalanceTotal = document.getElementById('finance-balance-total');
+        const financeIncomeTotal = document.getElementById('finance-income-total');
+        const financeExpenseTotal = document.getElementById('finance-expense-total');
+
+        transactionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const description = document.getElementById('transaction-description').value;
+            const amount = parseFloat(document.getElementById('transaction-amount').value);
+            const type = document.getElementById('transaction-type').value;
+
+            if (!description || isNaN(amount)) {
+                showMessage("Por favor, preencha a descrição e o valor.", "error");
+                return;
+            }
+
+            try {
+                await firebase.addDoc(firebase.collection(db, `artifacts/${__app_id}/users/${userId}/transactions`), {
+                    description,
+                    amount,
+                    type,
+                    created_at: new Date()
+                });
+                showMessage("Lançamento adicionado com sucesso!", "success");
+                transactionForm.reset();
+            } catch (error) {
+                console.error("Erro ao adicionar lançamento: ", error);
+                showMessage("Erro ao adicionar lançamento.", "error");
+            }
+        });
+
+        async function loadTransactions() {
+            if (!userId) {
+                console.log("Usuário não autenticado. Não é possível carregar transações.");
+                return;
+            }
+            try {
+                const q = firebase.collection(db, `artifacts/${__app_id}/users/${userId}/transactions`);
+                firebase.onSnapshot(q, (snapshot) => {
+                    transactionList.innerHTML = '';
+                    totalIncome = 0;
+                    totalExpense = 0;
+
+                    snapshot.forEach((doc) => {
+                        const transaction = doc.data();
+                        const amount = transaction.amount;
+                        const type = transaction.type;
+
+                        const li = document.createElement('li');
+                        li.classList.add('flex', 'justify-between', 'items-center', 'p-4', 'rounded-xl', 'shadow-sm', 'bg-gray-50');
+
+                        if (type === 'income') {
+                            li.classList.add('border-l-4', 'border-green-500');
+                            totalIncome += amount;
+                        } else {
+                            li.classList.add('border-l-4', 'border-red-500');
+                            totalExpense += amount;
+                        }
+
+                        li.innerHTML = `
+                            <div>
+                                <h3 class="font-semibold text-gray-800">${transaction.description}</h3>
+                                <span class="text-sm text-gray-500">${new Date(transaction.created_at.seconds * 1000).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold">${type === 'income' ? '+' : '-'} R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <button class="delete-transaction-btn text-red-500 hover:text-red-700 transition-colors" data-id="${doc.id}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.262 9m9.981-3.646a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001L19.5 5.25m-1.5 0a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001ZM12 6.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM10.5 1.5a.75.75 0 0 0-1.5 0v3a.75.75 0 0 0 1.5 0v-3ZM13.5 1.5a.75.75 0 0 0 0-1.5v-3a.75.75 0 0 0 0 1.5v3Z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 15-.346 9m-4.788 0L9.262 15m9.981-3.646a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001L19.5 11.25m-1.5 0a.75.75 0 0 0-.007-.001-.75.75 0 0 0-.007-.001ZM12 12.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        `;
+                        transactionList.appendChild(li);
+                    });
+                    updateFinanceTotals();
+                    addTransactionDeleteListeners();
+                });
+            } catch (error) {
+                console.error("Erro ao carregar transações: ", error);
+            }
+        }
+
+        function updateFinanceTotals() {
+            const balance = totalIncome - totalExpense;
+            financeBalanceTotal.textContent = `R$ ${balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            financeIncomeTotal.textContent = `R$ ${totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            financeExpenseTotal.textContent = `R$ ${totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+        }
+
+        function addTransactionDeleteListeners() {
+            document.querySelectorAll('.delete-transaction-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const transactionId = e.currentTarget.dataset.id;
+                    if (window.confirm("Tem certeza que deseja deletar este lançamento?")) {
+                        try {
+                            const transactionDocRef = firebase.doc(db, `artifacts/${__app_id}/users/${userId}/transactions`, transactionId);
+                            await firebase.deleteDoc(transactionDocRef);
+                            showMessage("Lançamento deletado com sucesso!", "success");
+                        } catch (error) {
+                            console.error("Erro ao deletar lançamento: ", error);
+                            showMessage("Erro ao deletar lançamento.", "error");
+                        }
+                    }
+                });
+            });
+        }
+
+
+        // --- Calendar Functions ---
+        const calendarGrid = document.getElementById('calendar-grid');
+        const currentMonthYear = document.getElementById('current-month-year');
+        const prevMonthBtn = document.getElementById('prev-month-btn');
+        const nextMonthBtn = document.getElementById('next-month-btn');
+
+        let today = new Date();
+        let currentMonth = today.getMonth();
+        let currentYear = today.getFullYear();
+        let events = {}; // To store events fetched from Firestore
+
+        async function loadEvents() {
+            if (!userId) {
+                console.log("Usuário não autenticado. Não é possível carregar eventos.");
+                return;
+            }
+            try {
+                const eventsCollection = firebase.collection(db, `artifacts/${__app_id}/users/${userId}/events`);
+                firebase.onSnapshot(eventsCollection, (snapshot) => {
+                    events = {};
+                    snapshot.forEach(doc => {
+                        const eventData = doc.data();
+                        const dateKey = new Date(eventData.date.seconds * 1000).toLocaleDateString('en-CA'); // 'YYYY-MM-DD'
+                        if (!events[dateKey]) {
+                            events[dateKey] = [];
+                        }
+                        events[dateKey].push({ id: doc.id, ...eventData });
+                    });
+                    renderCalendar();
+                });
+            } catch (error) {
+                console.error("Erro ao carregar eventos:", error);
+            }
+        }
+
+        function renderCalendar() {
+            calendarGrid.innerHTML = '';
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startDay = firstDay.getDay();
+
+            currentMonthYear.textContent = new Date(currentYear, currentMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+            // Fill leading empty days
+            for (let i = 0; i < startDay; i++) {
+                const emptyCell = document.createElement('div');
+                calendarGrid.appendChild(emptyCell);
+            }
+
+            // Fill days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(currentYear, currentMonth, day);
+                const dateKey = date.toLocaleDateString('en-CA');
+                const cell = document.createElement('div');
+                cell.classList.add('calendar-day', 'p-2', 'rounded-lg', 'text-center', 'cursor-pointer', 'hover:bg-gray-200');
+                if (date.toLocaleDateString('pt-BR') === today.toLocaleDateString('pt-BR')) {
+                    cell.classList.add('bg-[#d6cdc3]', 'font-bold');
+                }
+                cell.innerHTML = `<span class="font-medium text-gray-800">${day}</span>`;
+
+                if (events[dateKey] && events[dateKey].length > 0) {
+                    const eventDot = document.createElement('div');
+                    eventDot.classList.add('w-2', 'h-2', 'bg-blue-500', 'rounded-full', 'mx-auto', 'mt-1');
+                    cell.appendChild(eventDot);
+                }
+
+                cell.addEventListener('click', () => showDayEvents(date));
+                calendarGrid.appendChild(cell);
+            }
+        }
+
+        prevMonthBtn.addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        });
+
+        nextMonthBtn.addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        });
+
+        // Add Event Modal
+        const addEventBtn = document.getElementById('add-event-btn');
+        const addEventModal = document.createElement('div');
+        addEventModal.innerHTML = `
+            <div id="addEventModal" class="modal fixed inset-0 flex items-center justify-center p-4 z-50 hidden">
+                <div class="modal-content bg-white p-6 rounded-xl shadow-xl w-full max-w-lg space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">Adicionar Novo Evento</h2>
+                        <button id="closeAddEventModal" class="text-gray-500 hover:text-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <form id="add-event-form" class="space-y-4">
+                        <div>
+                            <label for="event-title" class="block text-sm font-medium text-gray-700">Título do Evento</label>
+                            <input type="text" id="event-title" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                        </div>
+                        <div>
+                            <label for="event-date" class="block text-sm font-medium text-gray-700">Data</label>
+                            <input type="date" id="event-date" class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm p-3 focus:ring-gray-400 focus:border-gray-400" required>
+                        </div>
+                        <button type="submit" class="w-full bg-[#392d26] text-white py-3 px-6 rounded-xl shadow-lg hover:bg-[#2e2621] transition-colors font-semibold">Salvar Evento</button>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(addEventModal);
+
+        const addEventForm = document.getElementById('add-event-form');
+        const closeAddEventModalBtn = document.getElementById('closeAddEventModal');
+
+        addEventBtn.addEventListener('click', () => {
+            document.getElementById('addEventModal').classList.remove('hidden');
+        });
+
+        closeAddEventModalBtn.addEventListener('click', () => {
+            document.getElementById('addEventModal').classList.add('hidden');
+        });
+
+        addEventForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('event-title').value;
+            const date = document.getElementById('event-date').value;
+
+            try {
+                await firebase.addDoc(firebase.collection(db, `artifacts/${__app_id}/users/${userId}/events`), {
+                    title: title,
+                    date: new Date(date),
+                    created_at: new Date()
+                });
+                showMessage("Evento adicionado com sucesso!", "success");
+                document.getElementById('addEventModal').classList.add('hidden');
+                addEventForm.reset();
+            } catch (error) {
+                console.error("Erro ao adicionar evento: ", error);
+                showMessage("Erro ao adicionar evento.", "error");
+            }
+        });
+
+        function showDayEvents(date) {
+            const dateKey = date.toLocaleDateString('en-CA');
+            const dayEvents = events[dateKey] || [];
+            
+            const eventListHtml = dayEvents.length > 0
+                ? dayEvents.map(event => `<li class="flex justify-between items-center py-2 border-b last:border-b-0"><span>${event.title}</span><button class="delete-event-btn text-red-500 hover:text-red-700" data-id="${event.id}">X</button></li>`).join('')
+                : '<p class="text-gray-500">Nenhum evento neste dia.</p>';
+
+            const modalContent = `
+                <div class="modal-content bg-white p-6 rounded-xl shadow-xl w-full max-w-lg space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">Eventos em ${date.toLocaleDateString('pt-BR')}</h2>
+                        <button id="closeDayEventsModal" class="text-gray-500 hover:text-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <ul class="space-y-2">
+                        ${eventListHtml}
+                    </ul>
+                </div>
+            `;
+
+            const modal = document.createElement('div');
+            modal.classList.add('modal', 'fixed', 'inset-0', 'flex', 'items-center', 'justify-center', 'p-4', 'z-50');
+            modal.innerHTML = modalContent;
+            document.body.appendChild(modal);
+
+            document.getElementById('closeDayEventsModal').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+
+            document.querySelectorAll('.delete-event-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const eventId = e.currentTarget.dataset.id;
+                    if (window.confirm("Tem certeza que deseja deletar este evento?")) {
+                        try {
+                            const eventDocRef = firebase.doc(db, `artifacts/${__app_id}/users/${userId}/events`, eventId);
+                            await firebase.deleteDoc(eventDocRef);
+                            showMessage("Evento deletado com sucesso!", "success");
+                            document.body.removeChild(modal); // Close the modal after deletion
+                        } catch (error) {
+                            console.error("Erro ao deletar evento: ", error);
+                            showMessage("Erro ao deletar evento.", "error");
+                        }
+                    }
+                });
+            });
+        }
     </script>
 </body>
 </html>
